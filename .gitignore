@@ -1,0 +1,34 @@
+.env
+.vscode/launch.json
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+*.venv
+.env
+
+# IDE-specific files
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# Build output
+build/
+dist/
+*.egg-info/
+
+# Dependency directories
+node_modules/
+
+# Pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
