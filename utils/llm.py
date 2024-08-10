@@ -1,10 +1,18 @@
-# Chat with an intelligent assistant in your terminal
+import os
 from openai import OpenAI
 
+# Get the directory of the current file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the path to the prompts directory
+prompts_dir = os.path.join(current_dir, '..', 'prompts')
+
+# Initialize the OpenAI client
 client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
 
+# Load the system prompt from the relative path
 history = [
-    {"role": "system", "content": open("../prompts/system_prompt.md").read().strip()},
+    {"role": "system", "content": open(os.path.join(prompts_dir, "system_prompt.md")).read().strip()},
 ]
 
 def chat():
@@ -34,12 +42,12 @@ def chat():
         history.append(new_message)  
         print()
 
-def assistant(instruction):
+def assistant(instruction, system_prompt=None):
     import json
     import re
 
     # Read the content of the intune_examples.md file
-    with open("../prompts/intune_examples.md", "r") as file:
+    with open(os.path.join(prompts_dir, "intune_examples.md"), "r") as file:
         lines = file.readlines()
 
     # Transform each line into the desired JSON format using regex
@@ -52,16 +60,18 @@ def assistant(instruction):
             content = match.group("content").strip()
             # print(f'{{"role": "{role}", "content": "{content}"}}') # Uncomment to see the JSON output in the console
 
+    # Use the provided system_prompt if available, otherwise use the default from history
+    system_prompt_content = system_prompt if system_prompt else history[0]["content"]
+
     response = client.chat.completions.create(
         model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
         messages=[
-            {"role": "system", "content": history[0]["content"]},
+            {"role": "system", "content": system_prompt_content},
             {"role": "user", "content": instruction}
         ],
         temperature=0.4,
     )
     return response.choices[0].message.content
-
 def get_embedding(text, model="nomic-ai/nomic-embed-text-v1.5-GGUF"):
     text = text.replace("\n", " ")
     return client.embeddings.create(input=[text], model=model).data[0].embedding
