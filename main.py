@@ -22,9 +22,10 @@ def main():
     def chat_with_ai(message, history):
         # Instantiate MSGraphAPI
         ms_graph_api = MSGraphAPI()
+        functions = open(os.path.join(prompts_dir, "functions.md")).read().strip()
         
         messages = []
-        #messages.append(system_prompt)
+        messages.append(system_prompt)  # Ensure system prompt is an object
         
         # Filter out empty history entries
         filtered_history = [entry for entry in history if entry]  # Ensure no empty entries
@@ -34,6 +35,7 @@ def main():
         
         response = client.chat.completions.create(
             model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+            functions=functions,
             messages=messages,
             temperature=0.2,
             stream=True,
@@ -45,22 +47,21 @@ def main():
         for stream_response in response:
             if stream_response.choices[0].delta.content is not None:
                 partial_response += stream_response.choices[0].delta.content
-                yield [(message, partial_response)]
+                yield [(message, partial_response)]  # Yield as a list of tuples
 
-        # Update the graph_api_url value after processing the complete response
-        #graph_api_request_url = partial_message.split('\n')[0].strip('*')  # Get the first line as the URL
-        #print("Graph API Request URL: " + graph_api_request_url)
-        
-        # Return the output in the expected format
-        #print([(message, partial_message)])
-        return [(message, partial_response)] #, gr.update(value=graph_api_request_url)
-    
+        # Final return to ensure the last message is sent correctly
+        return [(message, partial_response)]  # Ensure this is a list of tuples
+
+    def reset_chat():
+        return [], []  # Reset the chat history and return an empty list of tuples
+
     with gr.Blocks() as demo:
         gr.Markdown("## Copilot for Intune")
         gr.Markdown("Use AI to get insights on Intune managed devices")
         chatbot = gr.Chatbot()
         user_input = gr.Textbox(label="User Input", placeholder="Enter your query here...")
         user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])
+        
         graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...")
         #graph_api_url.change(fn=chat_with_ai, inputs=user_input, outputs=graph_api_url)
         #graph_api_output = gr.Textbox(label="Graph API Response")
