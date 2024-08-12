@@ -27,8 +27,9 @@ def chat():
         completion = client.chat.completions.create(
             model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
             messages=history,
-            temperature=0.7,
+            temperature=0.5,
             stream=True,
+            max_tokens=1000,
         )
 
         new_message = {"role": "assistant", "content": ""}  # Moved inside the loop
@@ -58,7 +59,6 @@ def assistant(instruction, system_prompt=None):
         if match:
             role = match.group("role").strip().upper()  # Convert role to uppercase
             content = match.group("content").strip()
-            # print(f'{{"role": "{role}", "content": "{content}"}}') # Uncomment to see the JSON output in the console
 
     # Use the provided system_prompt if available, otherwise use the default from history
     system_prompt_content = system_prompt if system_prompt else history[0]["content"]
@@ -70,8 +70,14 @@ def assistant(instruction, system_prompt=None):
             {"role": "user", "content": instruction}
         ],
         temperature=0.4,
+        stream=True,  # Enable streaming
     )
-    return response.choices[0].message.content
+
+    # Stream the response
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content  # Yield each chunk of the reasoning
+
 def get_embedding(text, model="nomic-ai/nomic-embed-text-v1.5-GGUF"):
     text = text.replace("\n", " ")
     return client.embeddings.create(input=[text], model=model).data[0].embedding
