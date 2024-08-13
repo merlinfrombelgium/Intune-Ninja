@@ -28,7 +28,7 @@ class MSGraphAPI:
         return response.json().get("access_token")
 
     def call_api(self, endpoint, method='GET', data=None):
-        url = f"{self.base_url}/{endpoint}"
+        url = f"{endpoint}" if endpoint.startswith(self.base_url) else f"{self.base_url}/{endpoint}"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
