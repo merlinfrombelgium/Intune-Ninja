@@ -13,7 +13,7 @@ def call_graph_api(api_url):
     except Exception as e:
         return f"Error calling API: {str(e)}"
 
-def main():
+def main(system_prompt_file="system_prompt.md", use_training=False):
     load_dotenv()  # Load environment variables from .env file
     import gradio as gr
     from gradio import MessageDict
@@ -26,7 +26,7 @@ def main():
     # Construct the path to the prompts directory
     prompts_dir = os.path.join(current_dir, 'prompts')
     
-    system_prompt = {"role": "system", "content": open(os.path.join(prompts_dir, "system_prompt.md")).read().strip()}
+    system_prompt = {"role": "system", "content": open(os.path.join(prompts_dir, system_prompt_file)).read().strip()}
 
     def chat_with_ai(message, history):
         # Instantiate MSGraphAPI
@@ -71,7 +71,7 @@ def main():
     def get_graph_api_url(message):
         functions = open(os.path.join(prompts_dir, "functions.md")).read().strip()
         messages = [
-            {"role": "system", "content": system_prompt["content"] + "Return ONLY the Graph API request URL."},
+            {"role": "system", "content": system_prompt["content"] + "Return ONLY the Graph API request URL, nothing else! Example: https://graph.microsoft.com/v1.0/users"},
             {"role": "user", "content": message}
         ]
         response = client.chat.completions.create(
@@ -87,20 +87,36 @@ def main():
     def reset_chat():
         return [], []  # Reset the chat history and return an empty list of tuples
 
+    # Define components outside of gr.Blocks()
+    user_input = gr.Textbox(label="User Input", placeholder="Enter your query here...")
+    graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
+    graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
+    chatbot = gr.Chatbot(scale=2)  # Define chatbot here
+
     with gr.Blocks() as demo:
         gr.Markdown("## Copilot for Intune")
-        gr.Markdown("Use AI to get insights on Intune managed devices")
-        chatbot = gr.Chatbot()
-        user_input = gr.Textbox(label="User Input", placeholder="Enter your query here...")
-        graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
-        user_input.submit(get_graph_api_url, user_input, graph_api_url)
-        graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
-        user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Update outputs to include graph_api_url
-        btn_call_graph_api = gr.Button("Call Graph API")
-        btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
+        gr.Markdown("Use AI to get insights on Intune data")
+        
+        # Create a row for the two columns
+        with gr.Row():
+            # Left column for user input and Graph API URL
+            with gr.Column():
+                gr.Examples(["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"], user_input)  # Example usage
+                user_input.render()  # Render user input
+                graph_api_url.render()  # Render Graph API URL
+                graph_api_response.render()  # Render Graph API Response
+                btn_call_graph_api = gr.Button("Call Graph API")
+                
+                user_input.submit(get_graph_api_url, user_input, graph_api_url)
+                user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
+                btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
+
+            # Right column for the chatbot
+            with gr.Column():
+                chatbot.render()  # Render chatbot here
 
     demo.queue()
     demo.launch(debug=True)
-     
+
 if __name__ == "__main__":
-    main()
+    main("system_prompt.md", True)  # Example usage with arguments
