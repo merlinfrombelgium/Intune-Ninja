@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from utils.ms_graph_api import MSGraphAPI
 from utils.llm import *
 import json
+import openai
+import gradio as gr
 
 working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
 
@@ -17,8 +19,6 @@ def call_graph_api(api_url):
 
 def main(system_prompt_file="system_prompt.md", use_training=False):
     load_dotenv()  # Load environment variables from .env file
-    import gradio as gr
-    from gradio import MessageDict
 
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
