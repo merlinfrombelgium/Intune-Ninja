@@ -4,6 +4,8 @@ from utils.ms_graph_api import MSGraphAPI
 from utils.llm import *
 import json
 
+working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
+
 def call_graph_api(api_url):
     """Call the Graph API and return the response."""
     ms_graph_api = MSGraphAPI()  # Instantiate MSGraphAPI
@@ -20,18 +22,13 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
 
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
-    # Get the directory of the current file
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Construct the path to the prompts directory
-    prompts_dir = os.path.join(current_dir, 'prompts')
     
-    system_prompt = {"role": "system", "content": open(os.path.join(prompts_dir, system_prompt_file)).read().strip()}
+    system_prompt = {"role": "system", "content": open(os.path.join(working_dir, "prompts", system_prompt_file)).read().strip()}
 
     def chat_with_ai(message, history):
         # Instantiate MSGraphAPI
         ms_graph_api = MSGraphAPI()
-        functions = open(os.path.join(prompts_dir, "functions.md")).read().strip()
+        functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         
         messages = []
         messages.append(system_prompt)  # Ensure system prompt is an object
@@ -69,7 +66,7 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
         return [(message, partial_response)]  # Ensure this is a list of tuples
 
     def get_graph_api_url(message):
-        functions = open(os.path.join(prompts_dir, "functions.md")).read().strip()
+        functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         messages = [
             {"role": "system", "content": system_prompt["content"] + "Return ONLY the Graph API request URL, nothing else! Example: https://graph.microsoft.com/v1.0/users"},
             {"role": "user", "content": message}
@@ -91,11 +88,14 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
     user_input = gr.Textbox(label="User Input", placeholder="Enter your query here...")
     graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
     graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
-    chatbot = gr.Chatbot(scale=2)  # Define chatbot here
+    chatbot = gr.Chatbot(scale=2, container=False, avatar_images=[None, os.path.join(working_dir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
+    title_icon_path = os.path.join(working_dir, "res", "img", "ninja_info.png")
 
     with gr.Blocks() as demo:
-        gr.Markdown("## Copilot for Intune")
-        gr.Markdown("Use AI to get insights on Intune data")
+        gr.Markdown("""
+        # Copilot for Intune
+        ## Use AI to get insights on Intune data
+        """)
         
         # Create a row for the two columns
         with gr.Row():
