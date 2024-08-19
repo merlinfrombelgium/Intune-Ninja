@@ -40,12 +40,12 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
         messages.append({"role": "user", "content": message})
         
         response = client.chat.completions.create(
-            model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+            model=os.getenv('LLM_MODEL'),
             functions=functions,
             messages=messages,
-            temperature=0.2,
+            temperature=os.getenv('LLM_TEMPERATURE'),
             stream=True,
-            max_tokens=1000,            
+            max_tokens=os.getenv('LLM_MAX_TOKENS'),            
         )
 
         # Process the streaming response
@@ -72,10 +72,10 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
             {"role": "user", "content": message}
         ]
         response = client.chat.completions.create(
-            model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+            model=os.getenv('LLM_MODEL'),
             functions=functions,
             messages=messages,
-            temperature=0.2,
+            temperature=os.getenv('LLM_TEMPERATURE'),
             stream=False,
             max_tokens=150,            
         )
