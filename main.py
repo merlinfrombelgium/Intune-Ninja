@@ -139,7 +139,6 @@ def initialize():
     graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
     chatbot = gr.Chatbot(scale=2, container=True, avatar_images=[None, os.path.join(working_dir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
     chatwindow = gr.ChatInterface(fn=chat_with_ai, chatbot=chatbot, title="Chat with Workplace Ninja AI")
-    title_icon_path = os.path.join(working_dir, "res", "img", "ninja_info.png")
 
     with gr.Blocks() as demo:
         gr.Markdown("""
