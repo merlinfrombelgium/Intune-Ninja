@@ -45,9 +45,9 @@ def initialize(system_prompt_file, use_training=False):
             model=os.getenv('LLM_MODEL'),
             #functions=functions,
             messages=messages,
-            temperature=os.getenv('LLM_TEMPERATURE'),
+            temperature=0.8,
             stream=True,
-            max_tokens=os.getenv('LLM_MAX_TOKENS'),            
+            max_tokens=1000,            
         )
 
         # Process the streaming response
