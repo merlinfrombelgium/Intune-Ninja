@@ -5,6 +5,7 @@ from utils.llm import *
 import json
 import openai
 import gradio as gr
+#from pydantic import BaseModel, ValidationError
 
 working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
 
@@ -17,7 +18,7 @@ def call_graph_api(api_url):
     except Exception as e:
         return f"Error calling API: {str(e)}"
 
-def main(system_prompt_file="system_prompt.md", use_training=False):
+def initialize(system_prompt_file, use_training=False):
     load_dotenv()  # Load environment variables from .env file
 
     #global graph_api_request_url  # Declare the variable as global
@@ -66,21 +67,63 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
         return [(message, partial_response)]  # Ensure this is a list of tuples
 
     def get_graph_api_url(message):
-        functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
+        # class GraphAPIURL(BaseModel):
+        #     base_url: str
+        #     endpoint: str
+        #     parameters: list[str]
+
+        #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         messages = [
             {"role": "system", "content": system_prompt["content"] + "Return ONLY the Graph API request URL, nothing else! Example: https://graph.microsoft.com/v1.0/users"},
             {"role": "user", "content": message}
         ]
-        response = client.chat.completions.create(
-            model=os.getenv('LLM_MODEL'),
-            functions=functions,
-            messages=messages,
-            temperature=os.getenv('LLM_TEMPERATURE'),
-            stream=False,
-            max_tokens=150,            
-        )
-        return response.choices[0].message.content
 
+        try:
+            # response = client.beta.chat.completions.parse(  # The pydantic method
+            response = client.chat.completions.create(
+                model=os.getenv('LLM_MODEL'),
+                #functions=functions,
+                messages=messages,
+                temperature=os.getenv('LLM_TEMPERATURE'),
+                #stream=False,
+                max_tokens=150,
+                # response_format=GraphAPIURL  # passing the pydantic format
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "GraphAPIURL",
+                        "description": "A URL for the Microsoft Graph API",
+                        "type": "object",
+                        "properties": {
+                            "base_url": {"type": "string"},
+                            "endpoint": {"type": "string"},
+                            "parameters": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": ["base_url", "endpoint"],
+                        "additionalProperties": False
+                    },
+                    "strict": True
+                }
+            )
+
+            # Parse the response content as JSON
+            content = response.choices[0].message.content  # Directly use the content
+            print(content)  # Debugging line to check the response structure
+
+            # Convert the string to a dictionary
+            content_dict = json.loads(content)  # Parse the JSON string to a dictionary
+
+            return f"{content_dict['base_url']}{content_dict['endpoint']}{content_dict['parameters']}"
+        # except ValidationError as e:  # only for pydantic validation errors
+        
+            # Handle validation errors
+            print(e.json())
+    
     def reset_chat():
         return [], []  # Reset the chat history and return an empty list of tuples
 
@@ -119,4 +162,4 @@ def main(system_prompt_file="system_prompt.md", use_training=False):
     demo.launch(debug=True)
 
 if __name__ == "__main__":
-    main("system_prompt.md", True)  # Example usage with arguments
+    initialize(system_prompt_file="system_prompt.md")
