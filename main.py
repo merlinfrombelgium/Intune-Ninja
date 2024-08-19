@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from utils.ms_graph_api import MSGraphAPI
 from utils.llm import *
 import json
-import openai
+from openai import OpenAI
 import gradio as gr
 #from pydantic import BaseModel, ValidationError
 
@@ -21,6 +21,7 @@ def call_graph_api(api_url):
 def initialize(system_prompt_file, use_training=False):
     load_dotenv()  # Load environment variables from .env file
 
+    client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
     
@@ -42,7 +43,7 @@ def initialize(system_prompt_file, use_training=False):
         
         response = client.chat.completions.create(
             model=os.getenv('LLM_MODEL'),
-            functions=functions,
+            #functions=functions,
             messages=messages,
             temperature=os.getenv('LLM_TEMPERATURE'),
             stream=True,
@@ -74,7 +75,7 @@ def initialize(system_prompt_file, use_training=False):
 
         #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         messages = [
-            {"role": "system", "content": system_prompt["content"] + "Return ONLY the Graph API request URL, nothing else! Example: https://graph.microsoft.com/v1.0/users"},
+            {"role": "system", "content": system_prompt["content"]},
             {"role": "user", "content": message}
         ]
 
@@ -84,45 +85,49 @@ def initialize(system_prompt_file, use_training=False):
                 model=os.getenv('LLM_MODEL'),
                 #functions=functions,
                 messages=messages,
-                temperature=os.getenv('LLM_TEMPERATURE'),
+                #temperature=os.getenv('LLM_TEMPERATURE'),
+                #temperature=0.01,
                 #stream=False,
-                max_tokens=150,
+                #max_tokens=150,
                 # response_format=GraphAPIURL  # passing the pydantic format
                 response_format={
                     "type": "json_schema",
                     "json_schema": {
                         "name": "GraphAPIURL",
                         "description": "A URL for the Microsoft Graph API",
-                        "type": "object",
-                        "properties": {
-                            "base_url": {"type": "string"},
-                            "endpoint": {"type": "string"},
-                            "parameters": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "base_url": {"type": "string"},
+                                "endpoint": {"type": "string"},
+                                "parameters": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
                                 }
-                            }
+                            },
+                            "required": ["base_url", "endpoint", "parameters"],
+                            "additionalProperties": False
                         },
-                        "required": ["base_url", "endpoint"],
-                        "additionalProperties": False
-                    },
-                    "strict": True
+                        "strict": True
+                    }
                 }
             )
 
             # Parse the response content as JSON
-            content = response.choices[0].message.content  # Directly use the content
+            content = response.choices[0].message.content
             print(content)  # Debugging line to check the response structure
 
             # Convert the string to a dictionary
             content_dict = json.loads(content)  # Parse the JSON string to a dictionary
 
-            return f"{content_dict['base_url']}{content_dict['endpoint']}{content_dict['parameters']}"
+            return f"{content_dict['base_url']}{content_dict['endpoint']}{'&'.join(content_dict['parameters'])}"
         # except ValidationError as e:  # only for pydantic validation errors
+            print(e.json())
         except Exception as e:
             # Handle validation errors
-            print(e.json())
+            print(e)
     
     def reset_chat():
         return [], []  # Reset the chat history and return an empty list of tuples
