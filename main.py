@@ -133,10 +133,11 @@ def initialize(system_prompt_file, use_training=False):
         return [], []  # Reset the chat history and return an empty list of tuples
 
     # Define components outside of gr.Blocks()
-    user_input = gr.Textbox(label="User Input", placeholder="Enter your query here...")
+    user_input = gr.Textbox(label="Query", placeholder="Enter your query here...")
     graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
     graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
-    chatbot = gr.Chatbot(scale=2, container=False, avatar_images=[None, os.path.join(working_dir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
+    chatbot = gr.Chatbot(scale=2, container=True, avatar_images=[None, os.path.join(working_dir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
+    chatwindow = gr.ChatInterface(fn=chat_with_ai, chatbot=chatbot, title="Chat with Workplace Ninja AI")
     title_icon_path = os.path.join(working_dir, "res", "img", "ninja_info.png")
 
     with gr.Blocks() as demo:
@@ -149,19 +150,20 @@ def initialize(system_prompt_file, use_training=False):
         with gr.Row():
             # Left column for user input and Graph API URL
             with gr.Column():
-                gr.Examples(["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"], user_input)  # Example usage
+                gr.Examples(["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"], inputs=user_input, fn=get_graph_api_url, outputs=graph_api_url, run_on_click=True)  # Example usage
                 user_input.render()  # Render user input
                 graph_api_url.render()  # Render Graph API URL
                 graph_api_response.render()  # Render Graph API Response
                 btn_call_graph_api = gr.Button("Call Graph API")
+                btn_clear_all = gr.ClearButton(components=[user_input, graph_api_url, graph_api_response], value="Clear", variant="stop")
                 
                 user_input.submit(get_graph_api_url, user_input, graph_api_url)
-                user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
+                #user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
                 btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
 
             # Right column for the chatbot
             with gr.Column():
-                chatbot.render()  # Render chatbot here
+                chatwindow.render()  # Render chatbot here
 
     demo.queue()
     demo.launch(debug=True)
