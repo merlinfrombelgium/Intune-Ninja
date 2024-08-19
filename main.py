@@ -18,19 +18,20 @@ def call_graph_api(api_url):
     except Exception as e:
         return f"Error calling API: {str(e)}"
 
-def initialize(system_prompt_file, use_training=False):
+def initialize():
     load_dotenv()  # Load environment variables from .env file
 
     client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
     
-    system_prompt = {"role": "system", "content": open(os.path.join(working_dir, "prompts", system_prompt_file)).read().strip()}
+    system_prompt_file = os.path.join(os.curdir, "prompts", "system_prompt.md")
+    system_prompt = {"role": "system", "content": open(system_prompt_file).read().strip()}
 
     def chat_with_ai(message, history):
         # Instantiate MSGraphAPI
         ms_graph_api = MSGraphAPI()
-        functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
+        #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         
         messages = []
         messages.append(system_prompt)  # Ensure system prompt is an object
@@ -47,7 +48,7 @@ def initialize(system_prompt_file, use_training=False):
             messages=messages,
             temperature=0.8,
             stream=True,
-            max_tokens=1000,            
+            max_tokens=1000,
         )
 
         # Process the streaming response
@@ -169,4 +170,4 @@ def initialize(system_prompt_file, use_training=False):
     demo.launch(debug=True)
 
 if __name__ == "__main__":
-    initialize(system_prompt_file="system_prompt.md")
+    initialize()
