@@ -120,7 +120,7 @@ def initialize(system_prompt_file, use_training=False):
 
             return f"{content_dict['base_url']}{content_dict['endpoint']}{content_dict['parameters']}"
         # except ValidationError as e:  # only for pydantic validation errors
-        
+        except Exception as e:
             # Handle validation errors
             print(e.json())
     
