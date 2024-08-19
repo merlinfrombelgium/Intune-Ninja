@@ -35,11 +35,11 @@ def initialize(system_prompt_file, use_training=False):
         messages = []
         messages.append(system_prompt)  # Ensure system prompt is an object
         
-        # Filter out empty history entries
-        filtered_history = [entry for entry in history if entry]  # Ensure no empty entries
-        messages.extend(filtered_history)
+        # Ensure history is formatted correctly
+        filtered_history = [{"role": "user", "content": str(entry)} for entry in history if entry]  # Convert entries to strings
+        messages.extend(filtered_history)  # Append filtered history as objects
         
-        messages.append({"role": "user", "content": message})
+        messages.append({"role": "user", "content": message})  # Append the current user message
         
         response = client.chat.completions.create(
             model=os.getenv('LLM_MODEL'),
