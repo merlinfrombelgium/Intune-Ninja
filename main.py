@@ -7,7 +7,7 @@ from openai import OpenAI
 import gradio as gr
 #from pydantic import BaseModel, ValidationError
 
-working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
+#working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
 
 def call_graph_api(api_url):
     """Call the Graph API and return the response."""
@@ -25,22 +25,20 @@ def initialize():
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
     
-    system_prompt_file = os.path.join(os.curdir, "prompts", "system_prompt.md")
+    system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
+    print("system prompt file :", system_prompt_file)
     system_prompt = {"role": "system", "content": open(system_prompt_file).read().strip()}
+    print("system prompt :", system_prompt)
 
     def chat_with_ai(message, history):
         # Instantiate MSGraphAPI
         ms_graph_api = MSGraphAPI()
         #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         
-        messages = []
-        messages.append(system_prompt)  # Ensure system prompt is an object
-        
-        # Ensure history is formatted correctly
-        filtered_history = [{"role": "user", "content": str(entry)} for entry in history if entry]  # Convert entries to strings
-        messages.extend(filtered_history)  # Append filtered history as objects
-        
-        messages.append({"role": "user", "content": message})  # Append the current user message
+        messages = [
+            {"role": "system", "content": f"{system_prompt['content']}"},
+            {"role": "user", "content": message}
+        ]
         
         response = client.chat.completions.create(
             model=os.getenv('LLM_MODEL'),
@@ -137,8 +135,10 @@ def initialize():
     user_input = gr.Textbox(label="Query", placeholder="Enter your query here...")
     graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
     graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
-    chatbot = gr.Chatbot(scale=2, container=True, avatar_images=[None, os.path.join(working_dir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
+    system_prompt_override = gr.Textbox(label="System Prompt", value=system_prompt["content"], interactive=True, lines=10, inputs=system_prompt["content"])
+    chatbot = gr.Chatbot(scale=2, container=True, avatar_images=[None, os.path.join(os.curdir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
     chatwindow = gr.ChatInterface(fn=chat_with_ai, chatbot=chatbot, title="Chat with Workplace Ninja AI")
+    chat_interface = gr.TabbedInterface([chatwindow, system_prompt_override], ["Chat", "System Prompt"])
 
     with gr.Blocks() as demo:
         gr.Markdown("""
@@ -155,15 +155,17 @@ def initialize():
                 graph_api_url.render()  # Render Graph API URL
                 graph_api_response.render()  # Render Graph API Response
                 btn_call_graph_api = gr.Button("Call Graph API")
-                btn_clear_all = gr.ClearButton(components=[user_input, graph_api_url, graph_api_response], value="Clear", variant="stop")
+                btn_clear_all = gr.ClearButton(components=[user_input, graph_api_url, graph_api_response, chatbot], value="Clear", variant="stop")
                 
-                user_input.submit(get_graph_api_url, user_input, graph_api_url)
+                user_input.submit(get_graph_api_url, user_input, [graph_api_url, chatbot])
                 #user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
+                graph_api_url.change(chat_with_ai, [graph_api_url, chatbot], [chatbot])
                 btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
+                graph_api_response.change(chat_with_ai, [graph_api_response, chatbot], [chatbot])
 
             # Right column for the chatbot
             with gr.Column():
-                chatwindow.render()  # Render chatbot here
+                chat_interface.render()
 
     demo.queue()
     demo.launch(debug=True)
