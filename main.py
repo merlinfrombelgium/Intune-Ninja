@@ -130,9 +130,6 @@ def initialize():
             # Handle validation errors
             print(e)
     
-    def reset_chat():
-        return [], []  # Reset the chat history and return an empty list of tuples
-
     # Define components outside of gr.Blocks()
     user_input = gr.Textbox(label="Query", placeholder="Enter your query here...")
     graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
