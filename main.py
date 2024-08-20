@@ -5,6 +5,7 @@ from utils.llm import *
 import json
 from openai import OpenAI
 import gradio as gr
+from textwrap import dedent
 #from pydantic import BaseModel, ValidationError
 
 #working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
@@ -74,7 +75,7 @@ def initialize():
 
         #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
         messages = [
-            {"role": "system", "content": system_prompt["content"]},
+            {"role": "system", "content": dedent(system_prompt["content"])},
             {"role": "user", "content": message}
         ]
 
@@ -100,7 +101,8 @@ def initialize():
                                 "base_url": {"type": "string"},
                                 "endpoint": {"type": "string"},
                                 "parameters": {
-                                    "type": "array",
+                                    "type": ["array", "null"],
+                                    "description": "A list of optional parameters for the Microsoft Graph API",
                                     "items": {
                                         "type": "string"
                                     }
