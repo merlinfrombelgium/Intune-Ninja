@@ -25,6 +25,7 @@ def initialize():
     client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
     #global graph_api_request_url  # Declare the variable as global
     graph_api_request_url = ""  # Initialize the variable
+    threads = {}
     
     system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
     print("system prompt file :", system_prompt_file)
@@ -130,6 +131,69 @@ def initialize():
             # Handle validation errors
             print(e)
     
+    def chat_with_assistant(message, history, request: gr.Request):
+        print("message: ", message)
+        print("history: ", history)
+
+        if request.session_hash in threads:
+            thread = threads[request.session_hash]
+        else:
+            threads[request.session_hash] = thread = client.beta.threads.create()
+        
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=message
+        )
+
+        from typing_extensions import override
+        from openai import AssistantEventHandler
+        
+        # First, we create a EventHandler class to define
+        # how we want to handle the events in the response stream.
+        
+        class EventHandler(AssistantEventHandler):    
+            @override
+            def on_text_created(self, text) -> None:
+                print(f"\nassistant > ", end="", flush=True)
+                
+            @override
+            def on_text_delta(self, delta, snapshot):
+                print(delta.value, end="", flush=True)
+                
+            def on_tool_call_created(self, tool_call):
+                print(f"\nassistant > {tool_call.type}\n", flush=True)
+            
+            def on_tool_call_delta(self, delta, snapshot):
+                if delta.type == 'code_interpreter':
+                    if delta.code_interpreter.input:
+                        print(delta.code_interpreter.input, end="", flush=True)
+                    if delta.code_interpreter.outputs:
+                        print(f"\n\noutput >", flush=True)
+                        for output in delta.code_interpreter.outputs:
+                            if output.type == "logs":
+                                print(f"\n{output.logs}", flush=True)
+        
+        # Then, we use the `stream` SDK helper 
+        # with the `EventHandler` class to create the Run 
+        # and stream the response.
+        
+        with client.beta.threads.runs.stream(
+            thread_id=thread.id,
+            assistant_id="asst_Fe7SrMEi2rKqAx6HYf7j3h7h",
+            #instructions="Please address the user as Jane Doe. The user has a premium account.",
+            event_handler=EventHandler(),
+        ) as stream:
+            stream.until_done()
+        
+        partial_message = ""
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                partial_message = partial_message + chunk.choices[0].delta.content
+                yield partial_message
+        
+        return partial_message
+
     def reset_chat():
         return [], []  # Reset the chat history and return an empty list of tuples
 
@@ -139,7 +203,7 @@ def initialize():
     graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
     system_prompt_override = gr.Textbox(label="System Prompt", value=system_prompt["content"], interactive=True, lines=10, inputs=system_prompt["content"])
     chatbot = gr.Chatbot(scale=2, container=True, avatar_images=[None, os.path.join(os.curdir, "res", "img", "ninja_info.png")], layout="bubble")  # Define chatbot here
-    chatwindow = gr.ChatInterface(fn=chat_with_ai, chatbot=chatbot, title="Chat with Workplace Ninja AI")
+    chatwindow = gr.ChatInterface(fn=chat_with_assistant, chatbot=chatbot, title="Chat with Workplace Ninja AI", )
     chat_interface = gr.TabbedInterface([chatwindow, system_prompt_override], ["Chat", "System Prompt"])
 
     with gr.Blocks() as demo:
@@ -161,9 +225,9 @@ def initialize():
                 
                 user_input.submit(get_graph_api_url, user_input, [graph_api_url, chatbot])
                 #user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
-                graph_api_url.change(chat_with_ai, [graph_api_url, chatbot], [chatbot])
+                #graph_api_url.change(chat_with_ai, [graph_api_url, chatbot], [chatbot])
                 btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
-                graph_api_response.change(chat_with_ai, [graph_api_response, chatbot], [chatbot])
+                #graph_api_response.change(chat_with_ai, [graph_api_response, chatbot], [chatbot])
 
             # Right column for the chatbot
             with gr.Column():
