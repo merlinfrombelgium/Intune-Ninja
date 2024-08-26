@@ -130,9 +130,8 @@ def get_graph_api_url(message):
         # Handle validation errors
         print(e)
 
-def chat_with_assistant(message: str, history: list[MessageDict], request: gr.Request):
+def chat_with_assistant(message: str, history: MessageDict, request: gr.Request) -> MessageDict:
     history.append({"role": "user", "content": message})
-    print("history :", history)
 
     if request.session_hash in threads:
         thread = threads[request.session_hash]
@@ -177,6 +176,7 @@ def chat_with_assistant(message: str, history: list[MessageDict], request: gr.Re
     # and stream the response.
     
     IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
+    toolcall = ChatMessage(role="assistant", metadata = {"title": "🛠️ Used tool "}, content="")
     response = ChatMessage(role="assistant", content="")
 
     with client.beta.threads.runs.stream(
@@ -186,10 +186,24 @@ def chat_with_assistant(message: str, history: list[MessageDict], request: gr.Re
         #event_handler=EventHandler(),
     ) as stream:
         for event in stream:
+            #print("event :", event)
+            # if event.event == "thread.run.step.delta" and event.data.delta.step_details.type == "tool_calls":
+            #     #toolcall.metadata["title"] += event.data.delta.step_details.tool_calls[0].type
+            #     history.append({"role": "assistant", "metadata": {"title": f"🛠️ Used tool {event.data.delta.step_details.tool_calls[0].type}"}, "content": "nothing here"})
+            #     print("history :", history)
+            #     return history
             if event.event == "thread.message.delta" and event.data.delta.content:
+                # history.append({"role": "assistant", "content": ""})
+                # history[-1].content += event.data.delta.content[0].text.value
+                # print("history :", history)
+                # yield history
                 response.content += event.data.delta.content[0].text.value
-                #print("response :", response)
                 yield response
+
+    return history
+
+
+
 
 
 load_dotenv()  # Load environment variables from .env file
