@@ -1,16 +1,10 @@
 import os, sys
 from dotenv import load_dotenv
-from utils.ms_graph_api import MSGraphAPI
-from utils.llm import *
-from utils.oai_assistant import Assistant
-import json
 from openai import OpenAI
 import streamlit as st
 from textwrap import dedent
-import time
-import datetime
-import traceback
-import sqlite3
+from utils.ms_graph_api import MSGraphAPI
+from utils.oai_assistant import Assistant
 from utils.ai_chat import chat_with_ai, chat_with_assistant, interpret_graph_api_url
 from utils.database import init_db, load_conversation_history, save_new_conversation, load_conversation, delete_conversation
 from utils.graph_api import call_graph_api, get_graph_api_url

@@ -2,6 +2,9 @@ from utils.ms_graph_api import MSGraphAPI
 import json
 import os
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from .env file
 
 def call_graph_api(api_url):
     ms_graph_api = MSGraphAPI()

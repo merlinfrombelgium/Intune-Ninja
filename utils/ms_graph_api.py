@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 import requests
-import json
 
 class MSGraphAPI:
     def __init__(self):
