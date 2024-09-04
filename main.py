@@ -88,6 +88,7 @@ with st.sidebar.expander("App configuration", expanded=True):
                                 type="password")
     if new_api_key and new_api_key != mask_string(st.session_state.secrets['LLM_API_KEY']):
         st.session_state.secrets['LLM_API_KEY'] = new_api_key
+        st.secrets["LLM_API_KEY"] = new_api_key
 
     # OpenAI Model
     new_model = st.selectbox("OpenAI Model", 
@@ -95,6 +96,7 @@ with st.sidebar.expander("App configuration", expanded=True):
                              index=0 if st.session_state.secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
     if new_model != st.session_state.secrets['LLM_MODEL']:
         st.session_state.secrets['LLM_MODEL'] = new_model
+        st.secrets["LLM_MODEL"] = new_model
 
     # Microsoft Graph API Credentials
     new_tenant_id = st.text_input("MS Graph Tenant ID", 
@@ -102,18 +104,25 @@ with st.sidebar.expander("App configuration", expanded=True):
                                   type="password")
     if new_tenant_id and new_tenant_id != mask_string(st.session_state.secrets['MS_GRAPH_TENANT_ID']):
         st.session_state.secrets['MS_GRAPH_TENANT_ID'] = new_tenant_id
+        st.secrets["MS_GRAPH_TENANT_ID"] = new_tenant_id
 
     new_client_id = st.text_input("MS Graph Client ID", 
                                   value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']), 
                                   type="password")
     if new_client_id and new_client_id != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']):
         st.session_state.secrets['MS_GRAPH_CLIENT_ID'] = new_client_id
+        st.secrets["MS_GRAPH_CLIENT_ID"] = new_client_id
 
     new_client_secret = st.text_input("MS Graph Client Secret", 
                                       value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']), 
                                       type="password")
     if new_client_secret and new_client_secret != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']):
         st.session_state.secrets['MS_GRAPH_CLIENT_SECRET'] = new_client_secret
+        st.secrets["MS_GRAPH_CLIENT_SECRET"] = new_client_secret
+
+    # Update OpenAI client if API key changes
+    if st.session_state.secrets['LLM_API_KEY'] != st.secrets["LLM_API_KEY"]:
+        client = OpenAI(api_key=st.session_state.secrets['LLM_API_KEY'])
 
 st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
