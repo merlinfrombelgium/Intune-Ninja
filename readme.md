@@ -29,18 +29,18 @@ Copilot for Intune is an AI-powered tool that provides insights on Intune data u
    ```
 
 3. Make a copy of the `.env.example` file in the root directory, rename it to `.env` and add your API key for OpenAI and client ID, secret and tenant ID for Microsoft Graph API.
-```
-# Microsoft Graph API Credentials
-MS_GRAPH_CLIENT_ID=your_client_id_here
-MS_GRAPH_CLIENT_SECRET=your_client_secret_here
-MS_GRAPH_TENANT_ID=your_tenant_id_here
+   ```
+   # Microsoft Graph API Credentials
+   MS_GRAPH_CLIENT_ID=your_client_id_here
+   MS_GRAPH_CLIENT_SECRET=your_client_secret_here
+   MS_GRAPH_TENANT_ID=your_tenant_id_here
 
-# Other API keys (if needed)
-OPENAI_API_KEY=your_openai_api_key_here
+   # Other API keys (if needed)
+   OPENAI_API_KEY=your_openai_api_key_here
 
-# Environment settings
-DEBUG=True
-```
+   # Environment settings
+   DEBUG=True
+   ```
 
 ## Usage
 Run the application:
