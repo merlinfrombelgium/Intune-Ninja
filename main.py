@@ -4,23 +4,17 @@ from utils.ms_graph_api import MSGraphAPI
 from utils.llm import *
 from utils.oai_assistant import Assistant
 import json
-from openai import OpenAI, AssistantEventHandler
-import gradio as gr
-from gradio import ChatMessage, MessageDict
+from openai import OpenAI
+import streamlit as st
 from textwrap import dedent
-#from pydantic import BaseModel, ValidationError
-
-sys.path.append(os.path.abspath("."))
-#working_dir = os.path.dirname(os.path.abspath(__file__))  # Define the root directory of the script as the working directory
-
-def call_graph_api(api_url):
-    """Call the Graph API and return the response."""
-    ms_graph_api = MSGraphAPI()  # Instantiate MSGraphAPI
-    try:
-        api_response = ms_graph_api.call_api(api_url)
-        return json.dumps(api_response, indent=2)  # Format the response as a JSON string
-    except Exception as e:
-        return f"Error calling API: {str(e)}"
+import time
+import datetime
+import traceback
+import sqlite3
+from utils.ai_chat import chat_with_ai, chat_with_assistant, interpret_graph_api_url
+from utils.database import init_db, load_conversation_history, save_new_conversation, load_conversation, delete_conversation
+from utils.graph_api import call_graph_api, get_graph_api_url
+from utils.ui_helpers import generate_placeholder_title
 
 def initialize_assistant():
     assistant = Assistant(client)
@@ -30,246 +24,210 @@ def initialize_assistant():
     except Exception as e:
         return f"Error initializing assistant: {str(e)}"
 
-
-def chat_with_ai(message, history):
-    # Instantiate MSGraphAPI
-    ms_graph_api = MSGraphAPI()
-    #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
-    
-    messages = [
-        {"role": "system", "content": f"{system_prompt['content']}"},
-        {"role": "user", "content": message}
-    ]
-    
-    response = client.chat.completions.create(
-        model=os.getenv('LLM_MODEL'),
-        #functions=functions,
-        messages=messages,
-        temperature=0.8,
-        stream=True,
-        max_tokens=1000,
-    )
-
-    # Process the streaming response
-    partial_response = ""
-    for stream_response in response:
-        if stream_response.choices[0].delta.content is not None:
-            partial_response += stream_response.choices[0].delta.content
-            yield [(message, partial_response)]  # Yield as a list of tuples
-
-    # Extract the Graph API URL from the AI response
-    #graph_api_request_url = partial_response.split('\n')[0].strip('*')  # Assuming the URL is the first line
-    #print("Graph API Request URL: " + graph_api_request_url)
-
-    # Call the Graph API using the extracted URL
-    #api_response_text = call_graph_api(graph_api_request_url)  # Use the new function
-
-    # Return the output in the expected format
-    return [(message, partial_response)]  # Ensure this is a list of tuples
-
-def get_graph_api_url(message):
-    # class GraphAPIURL(BaseModel):
-    #     base_url: str
-    #     endpoint: str
-    #     parameters: list[str]
-
-    #functions = open(os.path.join(working_dir, "prompts", "functions.md")).read().strip()
-    messages = [
-        {"role": "system", "content": dedent(system_prompt["content"])},
-        {"role": "user", "content": message}
-    ]
-
-    try:
-        # response = client.beta.chat.completions.parse(  # The pydantic method
-        response = client.chat.completions.create(
-            model=os.getenv('LLM_MODEL'),
-            #functions=functions,
-            messages=messages,
-            #temperature=os.getenv('LLM_TEMPERATURE'),
-            #temperature=0.01,
-            #stream=False,
-            #max_tokens=150,
-            # response_format=GraphAPIURL  # passing the pydantic format
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "GraphAPIURL",
-                    "description": "A URL for the Microsoft Graph API",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "base_url": {"type": "string"},
-                            "endpoint": {"type": "string"},
-                            "parameters": {
-                                "type": ["array", "null"],
-                                "description": "A list of optional parameters for the Microsoft Graph API",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "required": ["base_url", "endpoint", "parameters"],
-                        "additionalProperties": False
-                    },
-                    "strict": True
-                }
-            }
-        )
-
-        # Parse the response content as JSON
-        content = response.choices[0].message.content
-        print(content)  # Debugging line to check the response structure
-
-        # Convert the string to a dictionary
-        content_dict = json.loads(content)  # Parse the JSON string to a dictionary
-
-        return f"{content_dict['base_url']}{content_dict['endpoint']}{'&'.join(content_dict['parameters'])}"
-    # except ValidationError as e:  # only for pydantic validation errors
-        print(e.json())
-    except Exception as e:
-        # Handle validation errors
-        print(e)
-
-def chat_with_assistant(message: str, history: MessageDict, request: gr.Request) -> MessageDict:
-    history.append({"role": "user", "content": message})
-
-    if request.session_hash in threads:
-        thread = threads[request.session_hash]
-    else:
-        threads[request.session_hash] = thread = client.beta.threads.create()
-    
-    message = client.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=message
-    )
-
-    # from typing_extensions import override
-    
-    # # First, we create a EventHandler class to define
-    # # how we want to handle the events in the response stream.
-    
-    # class EventHandler(AssistantEventHandler):    
-    #     @override
-    #     def on_text_created(self, text) -> None:
-    #         print(f"\nassistant > ", end="", flush=True)
-            
-    #     @override
-    #     def on_text_delta(self, delta, snapshot):
-    #         print(delta.value, end="", flush=True)
-            
-    #     def on_tool_call_created(self, tool_call):
-    #         print(f"\nassistant > {tool_call.type}\n", flush=True)
-        
-    #     def on_tool_call_delta(self, delta, snapshot):
-    #         if delta.type == 'code_interpreter':
-    #             if delta.code_interpreter.input:
-    #                 print(delta.code_interpreter.input, end="", flush=True)
-    #             if delta.code_interpreter.outputs:
-    #                 print(f"\n\noutput >", flush=True)
-    #                 for output in delta.code_interpreter.outputs:
-    #                     if output.type == "logs":
-    #                         print(f"\n{output.logs}", flush=True)
-    
-    # Then, we use the `stream` SDK helper 
-    # with the `EventHandler` class to create the Run 
-    # and stream the response.
-    
-    IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
-    toolcall = ChatMessage(role="assistant", metadata = {"title": "🛠️ Used tool "}, content="")
-    response = ChatMessage(role="assistant", content="")
-
-    with client.beta.threads.runs.stream(
-        thread_id=thread.id,
-        assistant_id=IntuneCopilotAssistant.id,
-        #instructions="Please address the user as Jane Doe. The user has a premium account.",
-        #event_handler=EventHandler(),
-    ) as stream:
-        for event in stream:
-            #print("event :", event)
-            # if event.event == "thread.run.step.delta" and event.data.delta.step_details.type == "tool_calls":
-            #     #toolcall.metadata["title"] += event.data.delta.step_details.tool_calls[0].type
-            #     history.append({"role": "assistant", "metadata": {"title": f"🛠️ Used tool {event.data.delta.step_details.tool_calls[0].type}"}, "content": "nothing here"})
-            #     print("history :", history)
-            #     return history
-            if event.event == "thread.message.delta" and event.data.delta.content:
-                # history.append({"role": "assistant", "content": ""})
-                # history[-1].content += event.data.delta.content[0].text.value
-                # print("history :", history)
-                # yield history
-                response.content += event.data.delta.content[0].text.value
-                yield response
-
-    return history
-
-
-
-
-
 load_dotenv()  # Load environment variables from .env file
 
 client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
-#global graph_api_request_url  # Declare the variable as global
-graph_api_request_url = ""  # Initialize the variable
 threads = {}
 
 system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
-print("system prompt file :", system_prompt_file)
 system_prompt = {"role": "system", "content": open(system_prompt_file).read().strip()}
-print("system prompt :", system_prompt)
 
-# Define components outside of gr.Blocks()
-user_input = gr.Textbox(label="Query", placeholder="Enter your query here...")
-graph_api_url = gr.Textbox(label="Graph API Request URL", placeholder="https://graph.microsoft.com/v1.0/...", interactive=True)
-graph_api_response = gr.Textbox(label="Graph API Response", placeholder="Graph API Response will be displayed here...", interactive=False)
-system_prompt_override = gr.Textbox(label="System Prompt", value=system_prompt["content"], interactive=True, lines=10, inputs=system_prompt["content"])
-chatbot = gr.Chatbot(
-            scale=2,
-            container=False,
-            layout="bubble",
-            type="messages",
-            value = [{"role": "assistant", "content": "Ask me about any data in Intune"}]
-)
-chatwindow = gr.ChatInterface(
-            fn=chat_with_assistant,
-            type="messages",
-            chatbot=chatbot,
-            title="Chat with Workplace Ninja AI",
-            show_progress="full",
-            fill_width=True
-)
-chat_interface = gr.TabbedInterface([chatwindow, system_prompt_override], ["Chat", "System Prompt"])
+# Initialize database and load conversation history
+if 'db_initialized' not in st.session_state:
+    init_db()
+    st.session_state.db_initialized = True
 
-with gr.Blocks() as demo:
-    gr.Markdown("""
-    # Copilot for Intune
-    ## Use AI to get insights on Intune data
-    """)
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = load_conversation_history()
+
+# Streamlit UI setup
+st.set_page_config(page_title="Copilot for Intune", layout="wide")
+st.title("Copilot for Intune")
+
+def get_or_create_thread_id():
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = client.beta.threads.create().id
+    return st.session_state.thread_id
+
+# Add this CSS to create a vertical separator
+st.markdown("""
+<style>
+.vertical-separator {
+    border-left: 2px solid #e0e0e0;
+    height: 100vh;
+    position: absolute;
+    left: 50%;
+    top: 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Create the columns
+col1, separator, col2 = st.columns([0.495, 0.01, 0.495])
+
+# Add the vertical separator
+with separator:
+    st.markdown('<div class="vertical-separator"></div>', unsafe_allow_html=True)
+
+with col1:
+    st.header("Get a well formed Graph API request URL")
+    st.subheader("(Structured Output)")
     
-    # Create a row for the two columns
-    with gr.Row():
-        # Left column for user input and Graph API URL
-        with gr.Column():
-            gr.Examples(["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"], inputs=user_input, fn=get_graph_api_url, outputs=graph_api_url, run_on_click=True)  # Example usage
-            user_input.render()  # Render user input
-            graph_api_url.render()  # Render Graph API URL
-            graph_api_response.render()  # Render Graph API Response
-            btn_call_graph_api = gr.Button("Call Graph API")
-            btn_clear_all = gr.ClearButton(components=[user_input, graph_api_url, graph_api_response, chatbot], value="Clear", variant="stop")
+    # Modify the text input to capture the enter key press
+    user_input = st.text_input("Query", placeholder="Enter your query here...", key="user_query")
+    examples = ["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"]
+    selected_example = st.selectbox("Examples", [""] + examples)
+    
+    if selected_example:
+        user_input = selected_example
+    
+    # Function to handle URL generation
+    def generate_graph_api_url():
+        with st.spinner("Generating Graph API URL..."):
+            graph_api_url = get_graph_api_url(user_input, system_prompt)
+        
+        if graph_api_url:
+            st.session_state.graph_api_url = graph_api_url
+            st.text_input("Graph API Request URL", value=graph_api_url, key="graph_api_url")
             
-            user_input.submit(get_graph_api_url, user_input, [graph_api_url, chatbot])
-            #user_input.submit(chat_with_ai, [user_input, chatbot], [chatbot])  # Reference chatbot after defining it
-            #graph_api_url.change(chat_with_ai, [graph_api_url, chatbot], [chatbot])
-            btn_call_graph_api.click(call_graph_api, [graph_api_url], [graph_api_response])
-            #graph_api_response.change(chat_with_ai, [graph_api_response, chatbot], [chatbot])
+            # Trigger interpretation in col2
+            st.session_state.interpret_url = True
+        else:
+            st.error("Failed to generate Graph API URL. Please try again.")
+        
+        st.rerun()
+    
+    # Check if the user has pressed enter or clicked the button
+    if st.button("Get Graph API URL") or (user_input and user_input != st.session_state.get("last_query", "")):
+        st.session_state.last_query = user_input
+        generate_graph_api_url()
+    
+    # Display the Graph API URL
+    graph_api_url = st.session_state.get("graph_api_url", "")
+    if graph_api_url:
+        st.text_input("Graph API Request URL", value=graph_api_url, key="graph_api_url")
+    
+    if st.button("Call Graph API"):
+        graph_api_url = st.session_state.get("graph_api_url", "")
+        if graph_api_url:
+            graph_api_response = call_graph_api(graph_api_url)
+            
+            # Limit the response to 20 lines for display
+            response_lines = graph_api_response.split('\n')
+            if len(response_lines) > 20:
+                limited_response = '\n'.join(response_lines[:20]) + '\n...'
+            else:
+                limited_response = graph_api_response
+            
+            # Display the limited response in a scrollable text area
+            st.text_area("Graph API Response (first 20 lines)", value=limited_response, height=300)
+            
+            # Add a download button for the full response
+            st.download_button(
+                label="Download Full Response",
+                data=graph_api_response,
+                file_name="graph_api_response.json",
+                mime="application/json"
+            )
+            
+            # Send the API response to the AI assistant for interpretation
+            interpretation_prompt = f"""Inspect the response from the earlier Graph request:
 
-        # Right column for the chatbot
-        with gr.Column():
-            chat_interface.render()
+{graph_api_response}
 
-# demo.queue()
-# demo.launch(debug=True)
+If it doesn't show valid data or there's an error, suggest changes to the API URL so it can be called again for better results. If data in the response is as expected, present it in a useful way using all available format functions in markdown.
+
+Please structure your response as follows:
+1. Data Validity: [Valid/Invalid/Error]
+2. Interpretation: [Your interpretation of the data]
+3. Suggested Changes (if any): [Changes to the API URL, if needed]
+4. Formatted Data Presentation: [Present the data in a useful way using markdown]
+"""
+            
+            thread_id = get_or_create_thread_id()
+            ai_interpretation = chat_with_assistant(interpretation_prompt, [], thread_id)
+            
+            # Display the AI interpretation
+            st.markdown("## AI Interpretation of API Response")
+            st.markdown(ai_interpretation)
+            
+            # Add the API response and interpretation to the conversation
+            st.session_state.messages.append({"role": "assistant", "content": f"Graph API Response:\n```json\n{graph_api_response}\n```\n\nAI Interpretation:\n{ai_interpretation}"})
+            st.rerun()
+        else:
+            st.warning("Please generate a Graph API URL first.")
+
+with col2:
+    st.header("Have a conversation with an advanced AI")
+    st.subheader("(Threads, Reasoning, Tools, Functions)")
+    
+    # Add a Clear button
+    if st.button("Clear Conversation"):
+        st.session_state.messages = []
+        st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
+        st.rerun()
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Chat input at the top
+    prompt = st.chat_input("What is your question?")
+
+    # Create a container for the conversation
+    conversation_container = st.container()
+
+    # Handle new user input
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        with st.chat_message("assistant"):
+            with st.spinner("AI is thinking..."):
+                thread_id = get_or_create_thread_id()
+                full_response = chat_with_assistant(prompt, st.session_state.messages, thread_id)
+            st.markdown(full_response)
+        
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        st.rerun()
+
+    # Display the conversation history in reverse order
+    with conversation_container:
+        for message in reversed(st.session_state.messages):
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    # Handle URL interpretation here
+    if st.session_state.get("interpret_url", False):
+        with st.spinner("Interpreting Graph API URL..."):
+            graph_api_url = st.session_state.get("graph_api_url", "")
+            thread_id = get_or_create_thread_id()
+            interpretation = interpret_graph_api_url(graph_api_url, thread_id)
+            
+            interpretation_message = f"""Graph API URL Interpretation:
+Interpretation: {interpretation['interpretation']}
+Suggested Changes: {interpretation['suggested_changes']}
+Modified URL: {interpretation['modified_url']}"""
+            st.session_state.messages.append({"role": "assistant", "content": interpretation_message})
+            
+            # Update the URL if changes were suggested
+            if interpretation['modified_url'] != graph_api_url:
+                st.session_state.modified_graph_api_url = interpretation['modified_url']
+                st.text_input("Modified Graph API Request URL", value=st.session_state.modified_graph_api_url, key="modified_graph_api_url_input")
+                
+                # Add a button to apply the modified URL
+                if st.button("Apply Modified URL"):
+                    st.session_state.graph_api_url = st.session_state.modified_graph_api_url
+                    st.success("Graph API URL updated successfully!")
+                    st.rerun()
+        
+        # Reset the flag
+        st.session_state.interpret_url = False
+
+# Move the System Prompt Override outside of the columns
+with st.expander("System Prompt"):
+    new_system_prompt = st.text_area("Override System Prompt", value=system_prompt["content"], height=200)
+    if st.button("Update System Prompt"):
+        system_prompt["content"] = new_system_prompt
+        st.success("System prompt updated successfully!")
 
 if __name__ == "__main__":
-    #initialize()
-    demo.launch(debug=True)
+    pass
