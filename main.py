@@ -84,7 +84,7 @@ with col1:
         
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url
-            st.text_input("Graph API Request URL", value=graph_api_url, key="graph_api_url")
+            st.text_area("Graph API Request URL", value=graph_api_url, key="graph_api_url", height=100)
             
             # Call Graph API immediately
             with st.spinner("Calling Graph API..."):
@@ -94,8 +94,10 @@ with col1:
             st.session_state.interpret_url = True
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
-        
-        st.rerun()
+    
+    # Always display the Graph API URL if it exists in session state
+    elif "graph_api_url" in st.session_state:
+        st.text_area("Graph API Request URL", value=st.session_state.graph_api_url, key="graph_api_url", height=100)
 
     # Display the Graph API response in a scrollable window
     if st.session_state.get("graph_api_response"):
