@@ -1,12 +1,10 @@
 import os
 import time
-from dotenv import load_dotenv
+import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
 
-load_dotenv()  # Load environment variables from .env file
-
-client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
+client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
 
 def chat_with_ai(message, history, system_prompt):
     messages = [

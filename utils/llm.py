@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 from openai import OpenAI
 
 # Get the directory of the current file
@@ -8,7 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 prompts_dir = os.path.join(current_dir, '..', 'prompts')
 
 # Initialize the OpenAI client
-client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
 
 # Load the system prompt from the relative path
 history = [

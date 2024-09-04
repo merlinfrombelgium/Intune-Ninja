@@ -1,7 +1,7 @@
 .env
 .vscode/launch.json
 # Python cache files
-__pycache__/
+*__pycache__/
 *.py[cod]
 
 # Virtual environment
@@ -32,3 +32,9 @@ node_modules/
 
 # mypy
 .mypy_cache/
+
+playground/
+.aider*
+conversation_history.db
+.env.old
+.streamlit/secrets.toml

@@ -1,13 +1,12 @@
 import os
-from dotenv import load_dotenv
+import streamlit as st
 import requests
 
 class MSGraphAPI:
     def __init__(self):
-        load_dotenv()  # Load environment variables from .env file
-        self.client_id = os.getenv('MS_GRAPH_CLIENT_ID')
-        self.client_secret = os.getenv('MS_GRAPH_CLIENT_SECRET')
-        self.tenant_id = os.getenv('MS_GRAPH_TENANT_ID')
+        self.client_id = st.secrets['MS_GRAPH_CLIENT_ID']
+        self.client_secret = st.secrets['MS_GRAPH_CLIENT_SECRET']
+        self.tenant_id = st.secrets['MS_GRAPH_TENANT_ID']
         self.base_url = "https://graph.microsoft.com/v1.0"
         self.token = self.get_access_token()
 

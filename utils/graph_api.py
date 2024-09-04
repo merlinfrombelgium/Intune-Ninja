@@ -1,10 +1,7 @@
 from utils.ms_graph_api import MSGraphAPI
 import json
-import os
+import streamlit as st
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()  # Load environment variables from .env file
 
 def call_graph_api(api_url):
     ms_graph_api = MSGraphAPI()
@@ -15,7 +12,7 @@ def call_graph_api(api_url):
         return f"Error calling API: {str(e)}"
 
 def get_graph_api_url(message, system_prompt):
-    client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
+    client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
     messages = [
         {"role": "system", "content": system_prompt["content"]},
         {"role": "user", "content": message}
@@ -23,7 +20,7 @@ def get_graph_api_url(message, system_prompt):
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv('LLM_MODEL'),
+            model=st.secrets['LLM_MODEL'],
             messages=messages,
             response_format={
                 "type": "json_schema",

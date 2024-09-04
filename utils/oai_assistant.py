@@ -1,15 +1,14 @@
 from openai import OpenAI
 import os, sys
-from dotenv import load_dotenv
+import streamlit as st
 
 class Assistant:
     def __init__(self, client):
-        load_dotenv()
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
         self.client = client
         self.assistant_name = "Intune Copilot"
         self.assistant_instructions = open(os.sep.join(["prompts", "assistant_instructions.md"]), "r").read().strip()
-        self.assistant_model = "gpt-4o-mini"
+        self.assistant_model = st.secrets['LLM_MODEL']
         self.assistant_vector_store_name = "Intune Copilot"
         self.uploads_path = os.sep.join(["files", "graph_api_docs"])
 
