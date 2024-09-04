@@ -8,16 +8,23 @@ from utils.database import init_db, load_conversation_history, save_new_conversa
 from utils.graph_api import call_graph_api, get_graph_api_url
 from utils.ui_helpers import generate_placeholder_title
 
-# Remove this line
-# from dotenv import load_dotenv
+# Function to mask sensitive information
+def mask_string(s):
+    if len(s) <= 8:
+        return "*" * len(s)
+    return s[:4] + "*" * (len(s) - 8) + s[-4:]
 
-# Replace this line
-# load_dotenv()  # Load environment variables from .env file
+# Function to load or initialize secrets
+def load_or_init_secrets():
+    if 'secrets' not in st.session_state:
+        st.session_state.secrets = {
+            'LLM_API_KEY': st.secrets.get("LLM_API_KEY", ""),
+            'LLM_MODEL': st.secrets.get("LLM_MODEL", "gpt-4o-mini"),
+            'MS_GRAPH_TENANT_ID': st.secrets.get("MS_GRAPH_TENANT_ID", ""),
+            'MS_GRAPH_CLIENT_ID': st.secrets.get("MS_GRAPH_CLIENT_ID", ""),
+            'MS_GRAPH_CLIENT_SECRET': st.secrets.get("MS_GRAPH_CLIENT_SECRET", ""),
+        }
 
-# Replace this line
-# client = OpenAI(api_key=os.getenv('LLM_API_KEY'))
-
-# With these lines
 client = OpenAI(api_key=st.secrets["LLM_API_KEY"])
 
 threads = {}
@@ -35,7 +42,80 @@ if 'conversation_history' not in st.session_state:
 
 # Streamlit UI setup
 st.set_page_config(page_title="Copilot for Intune", layout="wide")
+
+# Add custom CSS for the labeled expander
+st.markdown("""
+<style>
+    .labeled-expander {
+        position: relative;
+        background-color: #f0f2f6;
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    .labeled-expander:hover {
+        border: 1px solid #4CAF50;
+    }
+    .expander-label {
+        position: absolute;
+        top: -10px;
+        left: 10px;
+        background-color: #ffffff;
+        padding: 0 5px;
+        font-size: 0.8em;
+        color: #4CAF50;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Copilot for Intune")
+
+# Load or initialize secrets
+load_or_init_secrets()
+
+# Custom labeled expander
+st.sidebar.markdown("""
+<div class="labeled-expander">
+    <div class="expander-label">⚙️ Configuration</div>
+""", unsafe_allow_html=True)
+
+# Configuration expander
+with st.sidebar.expander("App configuration", expanded=True):
+    
+    # OpenAI API Key
+    new_api_key = st.text_input("OpenAI API Key", 
+                                value=mask_string(st.session_state.secrets['LLM_API_KEY']), 
+                                type="password")
+    if new_api_key and new_api_key != mask_string(st.session_state.secrets['LLM_API_KEY']):
+        st.session_state.secrets['LLM_API_KEY'] = new_api_key
+
+    # OpenAI Model
+    new_model = st.selectbox("OpenAI Model", 
+                             ["gpt-4o-mini", "gpt-4o"], 
+                             index=0 if st.session_state.secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
+    if new_model != st.session_state.secrets['LLM_MODEL']:
+        st.session_state.secrets['LLM_MODEL'] = new_model
+
+    # Microsoft Graph API Credentials
+    new_tenant_id = st.text_input("MS Graph Tenant ID", 
+                                  value=mask_string(st.session_state.secrets['MS_GRAPH_TENANT_ID']), 
+                                  type="password")
+    if new_tenant_id and new_tenant_id != mask_string(st.session_state.secrets['MS_GRAPH_TENANT_ID']):
+        st.session_state.secrets['MS_GRAPH_TENANT_ID'] = new_tenant_id
+
+    new_client_id = st.text_input("MS Graph Client ID", 
+                                  value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']), 
+                                  type="password")
+    if new_client_id and new_client_id != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']):
+        st.session_state.secrets['MS_GRAPH_CLIENT_ID'] = new_client_id
+
+    new_client_secret = st.text_input("MS Graph Client Secret", 
+                                      value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']), 
+                                      type="password")
+    if new_client_secret and new_client_secret != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']):
+        st.session_state.secrets['MS_GRAPH_CLIENT_SECRET'] = new_client_secret
+
+st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
 # Add this to the top of the file, after other initializations
 if 'graph_api_response' not in st.session_state:
