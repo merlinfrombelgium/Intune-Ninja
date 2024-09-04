@@ -4,7 +4,13 @@ import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
 
-client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
+def get_user_secret(key):
+    if 'user_secrets' not in st.session_state:
+        st.error("User secrets not initialized. Please refresh the page.")
+        return None
+    return st.session_state.user_secrets.get(key)
+
+client = OpenAI(api_key=get_user_secret('LLM_API_KEY'))
 
 def chat_with_ai(message, history, system_prompt):
     messages = [
@@ -13,7 +19,7 @@ def chat_with_ai(message, history, system_prompt):
     ]
     
     response = client.chat.completions.create(
-        model=os.getenv('LLM_MODEL'),
+        model=get_user_secret('LLM_MODEL'),
         messages=messages,
         temperature=0.8,
         stream=True,

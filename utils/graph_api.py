@@ -3,6 +3,12 @@ import json
 import streamlit as st
 from openai import OpenAI
 
+def get_user_secret(key):
+    if 'user_secrets' not in st.session_state:
+        st.error("User secrets not initialized. Please refresh the page.")
+        return None
+    return st.session_state.user_secrets.get(key)
+
 def call_graph_api(api_url):
     ms_graph_api = MSGraphAPI()
     try:
@@ -12,7 +18,7 @@ def call_graph_api(api_url):
         return f"Error calling API: {str(e)}"
 
 def get_graph_api_url(message, system_prompt):
-    client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
+    client = OpenAI(api_key=get_user_secret('LLM_API_KEY'))
     messages = [
         {"role": "system", "content": system_prompt["content"]},
         {"role": "user", "content": message}
@@ -20,7 +26,7 @@ def get_graph_api_url(message, system_prompt):
 
     try:
         response = client.chat.completions.create(
-            model=st.secrets['LLM_MODEL'],
+            model=get_user_secret('LLM_MODEL'),
             messages=messages,
             response_format={
                 "type": "json_schema",

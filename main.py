@@ -1,6 +1,25 @@
-import os, sys
-from openai import OpenAI
 import streamlit as st
+from openai import OpenAI
+
+# Function to load or initialize secrets
+def load_or_init_secrets():
+    if 'user_secrets' not in st.session_state:
+        st.session_state.user_secrets = {
+            'LLM_API_KEY': st.secrets.get("LLM_API_KEY", ""),
+            'LLM_MODEL': st.secrets.get("LLM_MODEL", "gpt-4o-mini"),
+            'MS_GRAPH_TENANT_ID': st.secrets.get("MS_GRAPH_TENANT_ID", ""),
+            'MS_GRAPH_CLIENT_ID': st.secrets.get("MS_GRAPH_CLIENT_ID", ""),
+            'MS_GRAPH_CLIENT_SECRET': st.secrets.get("MS_GRAPH_CLIENT_SECRET", ""),
+        }
+
+# Load or initialize secrets
+load_or_init_secrets()
+
+# Initialize OpenAI client
+client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+
+# Now import other modules
+import os, sys
 from utils.ms_graph_api import MSGraphAPI
 from utils.oai_assistant import Assistant
 from utils.ai_chat import chat_with_ai, chat_with_assistant, interpret_graph_api_url
@@ -13,24 +32,6 @@ def mask_string(s):
     if len(s) <= 8:
         return "*" * len(s)
     return s[:4] + "*" * (len(s) - 8) + s[-4:]
-
-# Function to load or initialize secrets
-def load_or_init_secrets():
-    if 'secrets' not in st.session_state:
-        st.session_state.secrets = {
-            'LLM_API_KEY': st.secrets.get("LLM_API_KEY", ""),
-            'LLM_MODEL': st.secrets.get("LLM_MODEL", "gpt-4o-mini"),
-            'MS_GRAPH_TENANT_ID': st.secrets.get("MS_GRAPH_TENANT_ID", ""),
-            'MS_GRAPH_CLIENT_ID': st.secrets.get("MS_GRAPH_CLIENT_ID", ""),
-            'MS_GRAPH_CLIENT_SECRET': st.secrets.get("MS_GRAPH_CLIENT_SECRET", ""),
-        }
-
-client = OpenAI(api_key=st.secrets["LLM_API_KEY"])
-
-threads = {}
-
-system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
-system_prompt = {"role": "system", "content": open(system_prompt_file).read().strip()}
 
 # Initialize database and load conversation history
 if 'db_initialized' not in st.session_state:
@@ -70,9 +71,6 @@ st.markdown("""
 
 st.title("Copilot for Intune")
 
-# Load or initialize secrets
-load_or_init_secrets()
-
 # Custom labeled expander
 st.sidebar.markdown("""
 <div class="labeled-expander">
@@ -84,45 +82,40 @@ with st.sidebar.expander("App configuration", expanded=True):
     
     # OpenAI API Key
     new_api_key = st.text_input("OpenAI API Key", 
-                                value=mask_string(st.session_state.secrets['LLM_API_KEY']), 
+                                value=mask_string(st.session_state.user_secrets['LLM_API_KEY']), 
                                 type="password")
-    if new_api_key and new_api_key != mask_string(st.session_state.secrets['LLM_API_KEY']):
-        st.session_state.secrets['LLM_API_KEY'] = new_api_key
-        st.secrets["LLM_API_KEY"] = new_api_key
+    if new_api_key and new_api_key != mask_string(st.session_state.user_secrets['LLM_API_KEY']):
+        st.session_state.user_secrets['LLM_API_KEY'] = new_api_key
 
     # OpenAI Model
     new_model = st.selectbox("OpenAI Model", 
                              ["gpt-4o-mini", "gpt-4o"], 
-                             index=0 if st.session_state.secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
-    if new_model != st.session_state.secrets['LLM_MODEL']:
-        st.session_state.secrets['LLM_MODEL'] = new_model
-        st.secrets["LLM_MODEL"] = new_model
+                             index=0 if st.session_state.user_secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
+    if new_model != st.session_state.user_secrets['LLM_MODEL']:
+        st.session_state.user_secrets['LLM_MODEL'] = new_model
 
     # Microsoft Graph API Credentials
     new_tenant_id = st.text_input("MS Graph Tenant ID", 
-                                  value=mask_string(st.session_state.secrets['MS_GRAPH_TENANT_ID']), 
+                                  value=mask_string(st.session_state.user_secrets['MS_GRAPH_TENANT_ID']), 
                                   type="password")
-    if new_tenant_id and new_tenant_id != mask_string(st.session_state.secrets['MS_GRAPH_TENANT_ID']):
-        st.session_state.secrets['MS_GRAPH_TENANT_ID'] = new_tenant_id
-        st.secrets["MS_GRAPH_TENANT_ID"] = new_tenant_id
+    if new_tenant_id and new_tenant_id != mask_string(st.session_state.user_secrets['MS_GRAPH_TENANT_ID']):
+        st.session_state.user_secrets['MS_GRAPH_TENANT_ID'] = new_tenant_id
 
     new_client_id = st.text_input("MS Graph Client ID", 
-                                  value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']), 
+                                  value=mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_ID']), 
                                   type="password")
-    if new_client_id and new_client_id != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_ID']):
-        st.session_state.secrets['MS_GRAPH_CLIENT_ID'] = new_client_id
-        st.secrets["MS_GRAPH_CLIENT_ID"] = new_client_id
+    if new_client_id and new_client_id != mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_ID']):
+        st.session_state.user_secrets['MS_GRAPH_CLIENT_ID'] = new_client_id
 
     new_client_secret = st.text_input("MS Graph Client Secret", 
-                                      value=mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']), 
+                                      value=mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET']), 
                                       type="password")
-    if new_client_secret and new_client_secret != mask_string(st.session_state.secrets['MS_GRAPH_CLIENT_SECRET']):
-        st.session_state.secrets['MS_GRAPH_CLIENT_SECRET'] = new_client_secret
-        st.secrets["MS_GRAPH_CLIENT_SECRET"] = new_client_secret
+    if new_client_secret and new_client_secret != mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET']):
+        st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET'] = new_client_secret
 
     # Update OpenAI client if API key changes
-    if st.session_state.secrets['LLM_API_KEY'] != st.secrets["LLM_API_KEY"]:
-        client = OpenAI(api_key=st.session_state.secrets['LLM_API_KEY'])
+    if st.session_state.user_secrets['LLM_API_KEY'] != st.secrets.get("LLM_API_KEY", ""):
+        client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
 
 st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
@@ -134,6 +127,11 @@ def get_or_create_thread_id():
     if "thread_id" not in st.session_state:
         st.session_state.thread_id = client.beta.threads.create().id
     return st.session_state.thread_id
+
+# Load system prompt
+system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
+with open(system_prompt_file, 'r') as file:
+    system_prompt = {"role": "system", "content": file.read().strip()}
 
 # Add this CSS to create a vertical separator
 st.markdown("""

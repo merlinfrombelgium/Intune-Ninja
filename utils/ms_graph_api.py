@@ -2,11 +2,17 @@ import os
 import streamlit as st
 import requests
 
+def get_user_secret(key):
+    if 'user_secrets' not in st.session_state:
+        st.error("User secrets not initialized. Please refresh the page.")
+        return None
+    return st.session_state.user_secrets.get(key)
+
 class MSGraphAPI:
     def __init__(self):
-        self.client_id = st.secrets['MS_GRAPH_CLIENT_ID']
-        self.client_secret = st.secrets['MS_GRAPH_CLIENT_SECRET']
-        self.tenant_id = st.secrets['MS_GRAPH_TENANT_ID']
+        self.client_id = get_user_secret('MS_GRAPH_CLIENT_ID')
+        self.client_secret = get_user_secret('MS_GRAPH_CLIENT_SECRET')
+        self.tenant_id = get_user_secret('MS_GRAPH_TENANT_ID')
         self.base_url = "https://graph.microsoft.com/v1.0"
         self.token = self.get_access_token()
 

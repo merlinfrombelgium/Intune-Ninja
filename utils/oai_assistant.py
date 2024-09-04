@@ -2,13 +2,19 @@ from openai import OpenAI
 import os, sys
 import streamlit as st
 
+def get_user_secret(key):
+    if 'user_secrets' not in st.session_state:
+        st.error("User secrets not initialized. Please refresh the page.")
+        return None
+    return st.session_state.user_secrets.get(key)
+
 class Assistant:
     def __init__(self, client):
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
         self.client = client
         self.assistant_name = "Intune Copilot"
         self.assistant_instructions = open(os.sep.join(["prompts", "assistant_instructions.md"]), "r").read().strip()
-        self.assistant_model = st.secrets['LLM_MODEL']
+        self.assistant_model = get_user_secret('LLM_MODEL')
         self.assistant_vector_store_name = "Intune Copilot"
         self.uploads_path = os.sep.join(["files", "graph_api_docs"])
 
