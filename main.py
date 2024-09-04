@@ -1,5 +1,6 @@
 import streamlit as st
 from openai import OpenAI
+import re  # Make sure this import is at the top of the file
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
@@ -33,6 +34,10 @@ def mask_string(s):
         return "*" * len(s)
     return s[:4] + "*" * (len(s) - 8) + s[-4:]
 
+# Function to validate OpenAI API key format
+def is_valid_openai_api_key(api_key):
+    return api_key.startswith('sk-') or api_key.startswith('sk-proj-')
+
 # Initialize database and load conversation history
 if 'db_initialized' not in st.session_state:
     init_db()
@@ -44,38 +49,14 @@ if 'conversation_history' not in st.session_state:
 # Streamlit UI setup
 st.set_page_config(page_title="Copilot for Intune", layout="wide")
 
-# Add custom CSS for the labeled expander
+# Remove the custom CSS for the labeled expander
 st.markdown("""
 <style>
-    .labeled-expander {
-        position: relative;
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-    .labeled-expander:hover {
-        border: 1px solid #4CAF50;
-    }
-    .expander-label {
-        position: absolute;
-        top: -10px;
-        left: 10px;
-        background-color: #ffffff;
-        padding: 0 5px;
-        font-size: 0.8em;
-        color: #4CAF50;
-    }
+    /* Remove the labeled-expander styles */
 </style>
 """, unsafe_allow_html=True)
 
 st.title("Copilot for Intune")
-
-# Custom labeled expander
-st.sidebar.markdown("""
-<div class="labeled-expander">
-    <div class="expander-label">⚙️ Configuration</div>
-""", unsafe_allow_html=True)
 
 # Configuration expander
 with st.sidebar.expander("App configuration", expanded=True):
@@ -85,8 +66,17 @@ with st.sidebar.expander("App configuration", expanded=True):
                                 value=mask_string(st.session_state.user_secrets['LLM_API_KEY']), 
                                 type="password")
     if new_api_key and new_api_key != mask_string(st.session_state.user_secrets['LLM_API_KEY']):
-        st.session_state.user_secrets['LLM_API_KEY'] = new_api_key
-
+        if is_valid_openai_api_key(new_api_key):
+            st.session_state.user_secrets['LLM_API_KEY'] = new_api_key
+            # Update the global client
+            client = OpenAI(api_key=new_api_key)
+            # Update the client in utils/ai_chat.py
+            import utils.ai_chat
+            utils.ai_chat.client = OpenAI(api_key=new_api_key)
+            st.success("API key updated successfully!")
+        else:
+            st.error("Invalid OpenAI API key format. The key should start with 'sk-' or 'sk-proj-'.")
+    
     # OpenAI Model
     new_model = st.selectbox("OpenAI Model", 
                              ["gpt-4o-mini", "gpt-4o"], 
@@ -117,7 +107,8 @@ with st.sidebar.expander("App configuration", expanded=True):
     if st.session_state.user_secrets['LLM_API_KEY'] != st.secrets.get("LLM_API_KEY", ""):
         client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
 
-st.sidebar.markdown("</div>", unsafe_allow_html=True)
+# Remove the closing div tag
+# st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
 # Add this to the top of the file, after other initializations
 if 'graph_api_response' not in st.session_state:

@@ -3,6 +3,7 @@ import time
 import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
+from httpx import LocalProtocolError
 
 def get_user_secret(key):
     if 'user_secrets' not in st.session_state:
@@ -35,41 +36,63 @@ def chat_with_ai(message, history, system_prompt):
     return [(message, partial_response)]
 
 def chat_with_assistant(message: str, history: list, thread_id: str = None):
-    if thread_id is None:
-        thread_id = client.beta.threads.create().id
+    try:
+        if not get_user_secret('LLM_API_KEY'):
+            raise ValueError("OpenAI API key is missing or empty")
 
-    for msg in history:
+        if thread_id is None:
+            thread_id = client.beta.threads.create().id
+
+        for msg in history:
+            client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role=msg["role"],
+                content=msg["content"]
+            )
+
         client.beta.threads.messages.create(
             thread_id=thread_id,
-            role=msg["role"],
-            content=msg["content"]
+            role="user",
+            content=message
         )
 
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=message
-    )
+        IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
 
-    IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
-
-    run = client.beta.threads.runs.create(
-        thread_id=thread_id,
-        assistant_id=IntuneCopilotAssistant.id,
-        instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
-    )
-
-    while run.status != "completed":
-        run = client.beta.threads.runs.retrieve(
+        run = client.beta.threads.runs.create(
             thread_id=thread_id,
-            run_id=run.id
+            assistant_id=IntuneCopilotAssistant.id,
+            instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
         )
-        if run.status == "failed":
-            raise Exception("Run failed")
-        time.sleep(0.5)
 
-    messages = client.beta.threads.messages.list(thread_id=thread_id)
-    return messages.data[0].content[0].text.value
+        while run.status != "completed":
+            run = client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+            if run.status == "failed":
+                raise Exception("Run failed")
+            time.sleep(0.5)
+
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        return messages.data[0].content[0].text.value
+
+    except LocalProtocolError as e:
+        if "Illegal header value" in str(e):
+            error_message = "Error: Invalid or empty OpenAI API key. Please check your API key in the configuration."
+        else:
+            error_message = f"LocalProtocolError: {str(e)}"
+        st.error(error_message)
+        return error_message
+
+    except ValueError as e:
+        error_message = str(e)
+        st.error(error_message)
+        return error_message
+
+    except Exception as e:
+        error_message = f"An unexpected error occurred: {str(e)}"
+        st.error(error_message)
+        return error_message
 
 def interpret_graph_api_url(url, thread_id: str = None):
     prompt = f"""Interpret and explain the following Graph API URL: {url}
