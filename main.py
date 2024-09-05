@@ -1,6 +1,7 @@
+import os
 import streamlit as st
 from openai import OpenAI
-import re
+from utils.write_debug import write_debug
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -33,7 +34,7 @@ def load_or_init_secrets():
     # Initialize LLM_MODEL separately
     if 'LLM_MODEL' not in st.session_state:
         st.session_state.LLM_MODEL = "gpt-4o-2024-08-06"  # Updated default model
-    print(f"Current LLM_MODEL: {st.session_state.LLM_MODEL}")  # Add this line
+    # print(f"Current LLM_MODEL: {st.session_state.LLM_MODEL}")  # Add this line
 
 def clear_secrets_input():
     st.session_state.secrets_input = ""
@@ -59,20 +60,8 @@ if st.session_state.first_run and not are_secrets_set():
     st.toast("Welcome to Copilot for Intune!", icon="🥷")
     st.session_state.first_run = False
 
-# Initialize OpenAI client
-if st.session_state.user_secrets['LLM_API_KEY']:
-    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-else:
-    client = None
-
-# After initializing the client, pass it to the ai_chat module
-import utils.ai_chat
-utils.ai_chat.set_client(client)
-
-# Now import other modules
-import os
-from utils.ai_chat import chat_with_assistant
-from utils.database import init_db, load_conversation_history
+# Load modules depending on secrets
+from utils.ai_chat import chat_with_assistant, client
 from utils.graph_api import call_graph_api, get_graph_api_url
 
 # Function to mask sensitive information
@@ -84,14 +73,6 @@ def mask_string(s):
 # Function to validate OpenAI API key format
 def is_valid_openai_api_key(api_key):
     return api_key.startswith('sk-') or api_key.startswith('sk-proj-')
-
-# Initialize database and load conversation history
-if 'db_initialized' not in st.session_state:
-    init_db()
-    st.session_state.db_initialized = True
-
-if 'conversation_history' not in st.session_state:
-    st.session_state.conversation_history = load_conversation_history()
 
 # Remove the custom CSS for the labeled expander
 st.markdown("""
@@ -127,8 +108,6 @@ with st.sidebar:
                 # Update OpenAI client if API key changes
                 if 'LLM_API_KEY' in new_secrets and is_valid_openai_api_key(new_secrets['LLM_API_KEY']):
                     client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
-                    import utils.ai_chat
-                    utils.ai_chat.client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
                 
                 st.success("Secrets updated successfully!")
                 # Set the flag to clear the input field on the next run

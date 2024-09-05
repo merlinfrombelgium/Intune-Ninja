@@ -1,19 +1,18 @@
-import os
 import time
 import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
-from httpx import LocalProtocolError
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-client = None
-
-def set_client(openai_client):
-    global client
-    client = openai_client
+# Initialize OpenAI client
+#global client
+if st.session_state.user_secrets['LLM_API_KEY']:
+    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+else:
+    client = None
 
 def get_user_secret(key):
     if key == 'LLM_MODEL':
