@@ -1,23 +1,62 @@
 import streamlit as st
 from openai import OpenAI
-import re  # Make sure this import is at the top of the file
+import re
+
+# Add this new function to parse the pasted secrets
+def parse_secrets(secrets_text):
+    secrets = {}
+    for line in secrets_text.split('\n'):
+        if '=' in line:
+            key, value = line.split('=', 1)
+            secrets[key.strip()] = value.strip()
+    return secrets
+
+# Streamlit UI setup
+st.set_page_config(page_title="Copilot for Intune", layout="wide")
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
     if 'user_secrets' not in st.session_state:
         st.session_state.user_secrets = {
-            'LLM_API_KEY': st.secrets.get("LLM_API_KEY", ""),
-            'LLM_MODEL': st.secrets.get("LLM_MODEL", "gpt-4o-mini"),
-            'MS_GRAPH_TENANT_ID': st.secrets.get("MS_GRAPH_TENANT_ID", ""),
-            'MS_GRAPH_CLIENT_ID': st.secrets.get("MS_GRAPH_CLIENT_ID", ""),
-            'MS_GRAPH_CLIENT_SECRET': st.secrets.get("MS_GRAPH_CLIENT_SECRET", ""),
+            'LLM_API_KEY': "",
+            'LLM_MODEL': "gpt-4o-mini",
+            'MS_GRAPH_TENANT_ID': "",
+            'MS_GRAPH_CLIENT_ID': "",
+            'MS_GRAPH_CLIENT_SECRET': "",
         }
+        # Try to load from st.secrets if available
+        try:
+            for key in st.session_state.user_secrets.keys():
+                st.session_state.user_secrets[key] = st.secrets.get(key, st.session_state.user_secrets[key])
+        except FileNotFoundError:
+            st.warning("Please enter your secrets in the configuration section.")
 
 # Load or initialize secrets
 load_or_init_secrets()
 
+# Function to check if secrets are set
+def are_secrets_set():
+    return all([
+        st.session_state.user_secrets['LLM_API_KEY'],
+        st.session_state.user_secrets['MS_GRAPH_TENANT_ID'],
+        st.session_state.user_secrets['MS_GRAPH_CLIENT_ID'],
+        st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET']
+    ])
+
+# Check if it's the first run and secrets are not set
+if 'first_run' not in st.session_state:
+    st.session_state.first_run = True
+
+# Welcome message using st.toast
+if st.session_state.first_run and not are_secrets_set():
+    st.toast("Welcome to Copilot for Intune!", icon="👋")
+    st.session_state.first_run = False
+
 # Initialize OpenAI client
-client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+if st.session_state.user_secrets['LLM_API_KEY']:
+    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+else:
+    client = None
 
 # Now import other modules
 import os, sys
@@ -46,9 +85,6 @@ if 'db_initialized' not in st.session_state:
 if 'conversation_history' not in st.session_state:
     st.session_state.conversation_history = load_conversation_history()
 
-# Streamlit UI setup
-st.set_page_config(page_title="Copilot for Intune", layout="wide")
-
 # Remove the custom CSS for the labeled expander
 st.markdown("""
 <style>
@@ -58,57 +94,48 @@ st.markdown("""
 
 st.title("Copilot for Intune")
 
-# Configuration expander
-with st.sidebar.expander("App configuration", expanded=True):
+# Configuration section
+with st.sidebar:
+    st.title("App Configuration")
     
-    # OpenAI API Key
-    new_api_key = st.text_input("OpenAI API Key", 
-                                value=mask_string(st.session_state.user_secrets['LLM_API_KEY']), 
-                                type="password")
-    if new_api_key and new_api_key != mask_string(st.session_state.user_secrets['LLM_API_KEY']):
-        if is_valid_openai_api_key(new_api_key):
-            st.session_state.user_secrets['LLM_API_KEY'] = new_api_key
-            # Update the global client
-            client = OpenAI(api_key=new_api_key)
-            # Update the client in utils/ai_chat.py
-            import utils.ai_chat
-            utils.ai_chat.client = OpenAI(api_key=new_api_key)
-            st.success("API key updated successfully!")
+    with st.status("Configuring...", expanded=True) as status:
+        st.write("Paste all your secrets here (one per line, in the format KEY=VALUE):")
+        secrets_input = st.text_area("Secrets", height=150, help="Example format:\nLLM_API_KEY=sk-...\nMS_GRAPH_TENANT_ID=...\nMS_GRAPH_CLIENT_ID=...\nMS_GRAPH_CLIENT_SECRET=...")
+        
+        if st.button("Update Secrets"):
+            new_secrets = parse_secrets(secrets_input)
+            if new_secrets:
+                for key, value in new_secrets.items():
+                    if key in st.session_state.user_secrets and value:
+                        st.session_state.user_secrets[key] = value
+                
+                # Update OpenAI client if API key changes
+                if 'LLM_API_KEY' in new_secrets and is_valid_openai_api_key(new_secrets['LLM_API_KEY']):
+                    client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
+                    import utils.ai_chat
+                    utils.ai_chat.client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
+                
+                st.success("Secrets updated successfully!")
+                st.rerun()  # Rerun the app to apply changes
+            else:
+                st.error("No valid secrets found. Please check the format and try again.")
+        
+        # Display current secret values (masked)
+        st.write("Current Secret Values:")
+        for key, value in st.session_state.user_secrets.items():
+            st.text_input(key, value=mask_string(value), type="password", disabled=True)
+        
+        # OpenAI Model selection
+        new_model = st.selectbox("OpenAI Model", 
+                                 ["gpt-4o-mini", "gpt-4o"], 
+                                 index=0 if st.session_state.user_secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
+        if new_model != st.session_state.user_secrets['LLM_MODEL']:
+            st.session_state.user_secrets['LLM_MODEL'] = new_model
+        
+        if are_secrets_set():
+            status.update(label="Configuration complete!", state="complete", expanded=False)
         else:
-            st.error("Invalid OpenAI API key format. The key should start with 'sk-' or 'sk-proj-'.")
-    
-    # OpenAI Model
-    new_model = st.selectbox("OpenAI Model", 
-                             ["gpt-4o-mini", "gpt-4o"], 
-                             index=0 if st.session_state.user_secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
-    if new_model != st.session_state.user_secrets['LLM_MODEL']:
-        st.session_state.user_secrets['LLM_MODEL'] = new_model
-
-    # Microsoft Graph API Credentials
-    new_tenant_id = st.text_input("MS Graph Tenant ID", 
-                                  value=mask_string(st.session_state.user_secrets['MS_GRAPH_TENANT_ID']), 
-                                  type="password")
-    if new_tenant_id and new_tenant_id != mask_string(st.session_state.user_secrets['MS_GRAPH_TENANT_ID']):
-        st.session_state.user_secrets['MS_GRAPH_TENANT_ID'] = new_tenant_id
-
-    new_client_id = st.text_input("MS Graph Client ID", 
-                                  value=mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_ID']), 
-                                  type="password")
-    if new_client_id and new_client_id != mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_ID']):
-        st.session_state.user_secrets['MS_GRAPH_CLIENT_ID'] = new_client_id
-
-    new_client_secret = st.text_input("MS Graph Client Secret", 
-                                      value=mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET']), 
-                                      type="password")
-    if new_client_secret and new_client_secret != mask_string(st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET']):
-        st.session_state.user_secrets['MS_GRAPH_CLIENT_SECRET'] = new_client_secret
-
-    # Update OpenAI client if API key changes
-    if st.session_state.user_secrets['LLM_API_KEY'] != st.secrets.get("LLM_API_KEY", ""):
-        client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-
-# Remove the closing div tag
-# st.sidebar.markdown("</div>", unsafe_allow_html=True)
+            status.update(label="Please complete the configuration", state="running")
 
 # Add this to the top of the file, after other initializations
 if 'graph_api_response' not in st.session_state:
