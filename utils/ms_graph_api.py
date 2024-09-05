@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import requests
+from requests.exceptions import HTTPError
 
 def get_user_secret(key):
     if 'user_secrets' not in st.session_state:
@@ -27,9 +28,18 @@ class MSGraphAPI:
             "scope": "https://graph.microsoft.com/.default",
             "grant_type": "client_credentials"
         }
-        response = requests.post(url, headers=headers, data=body)
-        response.raise_for_status()  # Raise an error for bad responses
-        return response.json().get("access_token")
+        try:
+            response = requests.post(url, headers=headers, data=body)
+            response.raise_for_status()
+            return response.json().get("access_token")
+        except HTTPError as e:
+            if e.response.status_code == 400:
+                raise ValueError("Error 400: Bad Request. Please check your MS_GRAPH_TENANT_ID and MS_GRAPH_CLIENT_ID in the user secrets.")
+            elif e.response.status_code == 401:
+                raise ValueError("Error 401: Unauthorized. Please check your MS_GRAPH_CLIENT_SECRET in the user secrets.")
+            raise ValueError(f"HTTP Error: {e}")
+        except Exception as e:
+            raise ValueError(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
 
     def call_api(self, endpoint, method='GET', data=None):
         url = f"{endpoint}" if endpoint.startswith(self.base_url) else f"{self.base_url}/{endpoint}"
@@ -37,21 +47,31 @@ class MSGraphAPI:
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
-        if method == 'GET':
-            response = requests.get(url, headers=headers)
-        elif method == 'POST':
-            response = requests.post(url, headers=headers, json=data)
-        elif method == 'PATCH':
-            response = requests.patch(url, headers=headers, json=data)
-        elif method == 'DELETE':
-            response = requests.delete(url, headers=headers)
-        else:
-            raise ValueError("Unsupported HTTP method")
+        try:
+            if method == 'GET':
+                response = requests.get(url, headers=headers)
+            elif method == 'POST':
+                response = requests.post(url, headers=headers, json=data)
+            elif method == 'PATCH':
+                response = requests.patch(url, headers=headers, json=data)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=headers)
+            else:
+                raise ValueError("Unsupported HTTP method")
 
-        response.raise_for_status()  # Raise an error for bad responses
-        return response.json()
+            response.raise_for_status()
+            return response.json()
+        except HTTPError as e:
+            if e.response.status_code == 400:
+                raise ValueError("Error 400: Bad Request. Please check your request parameters and try again.\n\nFull Error: " + str(e))
+            raise ValueError(f"HTTP Error: {e}")
+        except Exception as e:
+            raise ValueError(f"Error calling Microsoft Graph API: {str(e)}")
 
 # Example usage:
-# graph_api = MSGraphAPI()
-# response = graph_api.call_api('me')
-# print(json.dumps(response, indent=2))
+# try:
+#     graph_api = MSGraphAPI()
+#     response = graph_api.call_api('me')
+#     print(json.dumps(response, indent=2))
+# except ValueError as e:
+#     st.error(str(e))
