@@ -166,8 +166,8 @@ with separator:
     st.markdown('<div class="vertical-separator"></div>', unsafe_allow_html=True)
 
 with col1:
-    st.header("Get a well formed Graph API request URL")
-    st.subheader("(Structured Output)")
+    # st.header("Get a well formed Graph API request URL")
+    # st.subheader("(Structured Output)")
     
     with st.form(key='query_form'):
         user_input = st.text_input(
@@ -231,8 +231,8 @@ with col1:
             st.rerun()
 
 with col2:
-    st.header("Have a conversation with an advanced AI")
-    st.subheader("(Threads, Reasoning, Tools, Functions)")
+    # st.header("Have a conversation with an advanced AI")
+    # st.subheader("(Threads, Reasoning, Tools, Functions)")
     
     # Add a Clear button
     if st.button("Clear Conversation"):
@@ -287,7 +287,7 @@ Please provide a clear and concise interpretation of this data.
             with st.spinner("AI is thinking..."):
                 thread_id = get_or_create_thread_id()
                 full_response = chat_with_assistant(prompt, st.session_state.messages, thread_id)
-            st.markdown(full_response)
+            full_response
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         st.rerun()
