@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from openai import OpenAI
-from utils.write_debug import write_debug
+from utils.write_debug import write_debug, clear_debug_messages
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -216,6 +216,7 @@ with col2:
     if st.button("Clear Conversation"):
         st.session_state.messages = []
         st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
+        clear_debug_messages()  # Clear debug messages
         st.rerun()
     
     if "messages" not in st.session_state:
@@ -285,3 +286,6 @@ AI Interpretation:
         # Reset the flag
         st.session_state.interpret_url = False
         st.rerun()
+
+# At the end of the file, add this to ensure debug info is always displayed
+write_debug("##############")
