@@ -9,9 +9,11 @@ logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
 #global client
-if st.session_state.user_secrets['LLM_API_KEY']:
-    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-else:
+try:
+    if st.session_state.user_secrets['LLM_API_KEY']:
+        client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+except Exception as e:
+    logger.error(f"Error initializing OpenAI client: {str(e)}")
     client = None
 
 def get_user_secret(key):
