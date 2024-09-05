@@ -14,7 +14,7 @@ def write_debug(message):
     # Update the debug info in the sidebar
     with st.session_state.debug_container.container():
         with st.expander("Debug Info", expanded=False, icon="🔎"):
-            st.text_area("", value="\n".join(st.session_state.debug_messages), height=400)
+            st.text_area("Debug logs", label_visibility="collapsed", value="\n".join(st.session_state.debug_messages), height=400)
 
 # Add this function to clear debug messages
 def clear_debug_messages():

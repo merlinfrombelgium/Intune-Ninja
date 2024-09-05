@@ -94,7 +94,7 @@ with st.sidebar:
             st.session_state.secrets_input = ""
             st.session_state.clear_secrets_input = False
         
-        secrets_input = st.text_area("Secrets", height=150, key="secrets_input",
+        secrets_input = st.text_area(label="Secrets", value="", height=150, key="secrets_input",
                                      help="Example format:\nLLM_API_KEY=sk-...\nMS_GRAPH_TENANT_ID=...\nMS_GRAPH_CLIENT_ID=...\nMS_GRAPH_CLIENT_SECRET=...")
         
         if st.button("Update Secrets"):
@@ -116,11 +116,11 @@ with st.sidebar:
         # Display current secret values (masked)
         st.write("Current Secret Values:")
         for key, value in st.session_state.user_secrets.items():
-            st.text_input(key, value=mask_string(value), type="password", disabled=True)
+            st.text_input(label=key, value=mask_string(value), type="password", disabled=True)
         
         # OpenAI Model selection
-        new_model = st.selectbox("OpenAI Model", 
-                                 ["gpt-4o-2024-08-06", "gpt-4o-mini"], 
+        new_model = st.selectbox(label="OpenAI Model", 
+                                 options=["gpt-4o-2024-08-06", "gpt-4o-mini"], 
                                  index=0 if st.session_state.LLM_MODEL == "gpt-4o-2024-08-06" else 1)
         if new_model != st.session_state.LLM_MODEL:
             st.session_state.LLM_MODEL = new_model
@@ -169,9 +169,9 @@ with col1:
     st.header("Get a well formed Graph API request URL")
     st.subheader("(Structured Output)")
     
-    user_input = st.text_input("Query", placeholder="Enter your query here...", key="user_query")
+    user_input = st.text_input(label="Query", placeholder="Enter your query here...", key="user_query")
     examples = ["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"]
-    selected_example = st.selectbox("Examples", [""] + examples)
+    selected_example = st.selectbox(label="Examples", options=[""] + examples)
     
     if selected_example:
         user_input = selected_example
@@ -183,7 +183,7 @@ with col1:
         
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url
-            st.text_area("Graph API Request URL", value=graph_api_url, key="graph_api_url", height=100)
+            st.text_area(label="Graph API Request URL", value=graph_api_url, key="graph_api_url", height=100)
             
             # Call Graph API immediately
             with st.spinner("Calling Graph API..."):
@@ -196,12 +196,12 @@ with col1:
     
     # Always display the Graph API URL if it exists in session state
     elif "graph_api_url" in st.session_state:
-        st.text_area("Graph API Request URL", value=st.session_state.graph_api_url, key="graph_api_url", height=100)
+        st.text_area(label="Graph API Request URL", value=st.session_state.graph_api_url, key="graph_api_url", height=100)
 
     # Display the Graph API response in a scrollable window
     if st.session_state.get("graph_api_response"):
         st.subheader("Graph API Response")
-        st.text_area("", value=st.session_state.graph_api_response, height=300, key="graph_api_response_col1")
+        st.text_area(label="Graph API Response", value=st.session_state.graph_api_response, height=300, key="graph_api_response_col1")
 
 with col2:
     st.header("Have a conversation with an advanced AI")
@@ -283,4 +283,4 @@ AI Interpretation:
         st.rerun()
 
 # At the end of the file, add this to ensure debug info is always displayed
-write_debug("##############")
+write_debug("")
