@@ -84,16 +84,17 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
         )
         logger.info("Added user message to thread")
 
-        with st.spinner("Preparing assistant..."):
-            IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
-        if IntuneCopilotAssistant is None:
-            raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
-        logger.info(f"Retrieved assistant. ID: {IntuneCopilotAssistant.id}")
+        if 'IntuneCopilotAssistant' not in st.session_state:
+            with st.spinner("Preparing assistant..."):
+                st.session_state.IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
+            if st.session_state.IntuneCopilotAssistant is None:
+                raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
+            logger.info(f"Retrieved assistant. ID: {st.session_state.IntuneCopilotAssistant.id}")
 
         with st.spinner("Processing your request..."):
             run = client.beta.threads.runs.create(
                 thread_id=thread_id,
-                assistant_id=IntuneCopilotAssistant.id,
+                assistant_id=st.session_state.IntuneCopilotAssistant.id,
                 instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
             )
             logger.info(f"Created run. ID: {run.id}")

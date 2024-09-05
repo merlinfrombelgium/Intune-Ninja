@@ -30,9 +30,9 @@ from utils.ui_helpers import generate_placeholder_title
 
 # Function to mask sensitive information
 def mask_string(s):
-    if len(s) <= 8:
+    if len(s) <= 15:
         return "*" * len(s)
-    return s[:4] + "*" * (len(s) - 8) + s[-4:]
+    return s[:15] + "*" * (len(s) - 15)
 
 # Function to validate OpenAI API key format
 def is_valid_openai_api_key(api_key):

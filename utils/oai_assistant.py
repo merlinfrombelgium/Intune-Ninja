@@ -67,13 +67,13 @@ class Assistant:
     def retrieve_assistant(self):
         try:
             if self.assistant is not None:
-                st.info(f"Using existing Intune Copilot assistant. (id: {self.assistant.id})")
                 return self.assistant
 
             assistants_list = self.client.beta.assistants.list()
             self.assistant = next((assistant for assistant in assistants_list if assistant.name == self.assistant_name), None)
             
             if self.assistant is None:
+                st.info("Creating new Intune Copilot assistant...")
                 self.assistant = self.create_assistant()
                 self.assistant_vector_store_id = self.create_vector_store()
                 self.upload_files()
