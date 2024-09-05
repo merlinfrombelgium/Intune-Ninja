@@ -4,6 +4,10 @@ import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
 from httpx import LocalProtocolError
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def get_user_secret(key):
     if 'user_secrets' not in st.session_state:
@@ -40,8 +44,30 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
         if not get_user_secret('LLM_API_KEY'):
             raise ValueError("OpenAI API key is missing or empty")
 
-        if thread_id is None:
+        logger.info(f"Starting chat_with_assistant. Message: {message[:50]}...")
+
+        # Try to use the existing thread_id, create a new one if it doesn't exist
+        try:
+            if thread_id:
+                # Check if the thread exists
+                thread = client.beta.threads.retrieve(thread_id)
+                logger.info(f"Using existing thread. ID: {thread_id}")
+                
+                # Check for any active runs on this thread
+                runs = client.beta.threads.runs.list(thread_id=thread_id, limit=1)
+                if runs.data and runs.data[0].status in ['queued', 'in_progress', 'requires_action']:
+                    logger.info(f"Waiting for active run to complete. Run ID: {runs.data[0].id}")
+                    while runs.data[0].status in ['queued', 'in_progress', 'requires_action']:
+                        time.sleep(1)
+                        runs.data[0] = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=runs.data[0].id)
+                    logger.info(f"Active run completed. Status: {runs.data[0].status}")
+            else:
+                thread_id = client.beta.threads.create().id
+                logger.info(f"Created new thread. ID: {thread_id}")
+        except Exception as e:
+            logger.warning(f"Error retrieving thread: {str(e)}. Creating a new one.")
             thread_id = client.beta.threads.create().id
+            logger.info(f"Created new thread. ID: {thread_id}")
 
         for msg in history:
             client.beta.threads.messages.create(
@@ -49,48 +75,61 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
                 role=msg["role"],
                 content=msg["content"]
             )
+        logger.info(f"Added {len(history)} messages from history")
 
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
             content=message
         )
+        logger.info("Added user message to thread")
 
-        IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
+        with st.spinner("Preparing assistant..."):
+            IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
+        if IntuneCopilotAssistant is None:
+            raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
+        logger.info(f"Retrieved assistant. ID: {IntuneCopilotAssistant.id}")
 
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=IntuneCopilotAssistant.id,
-            instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
-        )
-
-        while run.status != "completed":
-            run = client.beta.threads.runs.retrieve(
+        with st.spinner("Processing your request..."):
+            run = client.beta.threads.runs.create(
                 thread_id=thread_id,
-                run_id=run.id
+                assistant_id=IntuneCopilotAssistant.id,
+                instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
             )
-            if run.status == "failed":
-                raise Exception("Run failed")
-            time.sleep(0.5)
+            logger.info(f"Created run. ID: {run.id}")
+
+            while run.status != "completed":
+                run = client.beta.threads.runs.retrieve(
+                    thread_id=thread_id,
+                    run_id=run.id
+                )
+                logger.info(f"Run status: {run.status}")
+                if run.status == "failed":
+                    raise Exception(f"Run failed. Error: {run.last_error}")
+                time.sleep(0.5)
 
         messages = client.beta.threads.messages.list(thread_id=thread_id)
-        return messages.data[0].content[0].text.value
+        logger.info(f"Retrieved messages. Count: {len(messages.data)}")
 
-    except LocalProtocolError as e:
-        if "Illegal header value" in str(e):
-            error_message = "Error: Invalid or empty OpenAI API key. Please check your API key in the configuration."
+        if not messages.data:
+            raise ValueError("No messages returned from the assistant")
+        
+        logger.info(f"First message content type: {type(messages.data[0].content)}")
+        logger.info(f"First message content: {messages.data[0].content}")
+
+        # Check if content is a list and has at least one item
+        if isinstance(messages.data[0].content, list) and len(messages.data[0].content) > 0:
+            # Check if the first item has a 'text' attribute
+            if hasattr(messages.data[0].content[0], 'text'):
+                return messages.data[0].content[0].text.value
+            else:
+                raise ValueError("Unexpected message content structure")
         else:
-            error_message = f"LocalProtocolError: {str(e)}"
-        st.error(error_message)
-        return error_message
-
-    except ValueError as e:
-        error_message = str(e)
-        st.error(error_message)
-        return error_message
+            raise ValueError("Unexpected message content structure")
 
     except Exception as e:
-        error_message = f"An unexpected error occurred: {str(e)}"
+        logger.error(f"Error in chat_with_assistant: {str(e)}", exc_info=True)
+        error_message = f"An error occurred: {str(e)}"
         st.error(error_message)
         return error_message
 
