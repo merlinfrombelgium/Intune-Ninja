@@ -1,6 +1,5 @@
 import os
 import streamlit as st
-from openai import OpenAI
 from utils.write_debug import write_debug, clear_debug_messages
 
 # Add this new function to parse the pasted secrets
@@ -61,8 +60,8 @@ if st.session_state.first_run and not are_secrets_set():
     st.session_state.first_run = False
 
 # Load modules depending on secrets
-from utils.ai_chat import chat_with_assistant, client
 from utils.graph_api import call_graph_api, get_graph_api_url
+from utils.ai_chat import client, chat_with_assistant
 
 # Function to mask sensitive information
 def mask_string(s):
@@ -104,10 +103,6 @@ with st.sidebar:
                 for key, value in new_secrets.items():
                     if key in st.session_state.user_secrets and value:
                         st.session_state.user_secrets[key] = value
-                
-                # Update OpenAI client if API key changes
-                if 'LLM_API_KEY' in new_secrets and is_valid_openai_api_key(new_secrets['LLM_API_KEY']):
-                    client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
                 
                 st.success("Secrets updated successfully!")
                 # Set the flag to clear the input field on the next run
@@ -184,7 +179,7 @@ with col1:
     if st.button("Get Graph API URL") or (user_input and user_input != st.session_state.get("last_query", "")):
         st.session_state.last_query = user_input
         with st.spinner("Generating Graph API URL..."):
-            graph_api_url = get_graph_api_url(user_input, system_prompt)
+            graph_api_url = get_graph_api_url(client, user_input, system_prompt)
         
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url

@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import json
 from requests.exceptions import HTTPError
-from utils.ai_chat import get_user_secret, client
+from utils.ai_chat import get_user_secret
 from utils.write_debug import write_debug
 
 class MSGraphAPI:
@@ -85,11 +85,7 @@ def call_graph_api(api_url):
     except Exception as e:
         return f"Error calling API: {str(e)}"
 
-def get_graph_api_url(message, system_prompt):
-    if not client:
-        st.error("OpenAI client is not initialized.")
-        return None
-
+def get_graph_api_url(client, message, system_prompt):
     messages = [
         {"role": "system", "content": system_prompt["content"]},
         {"role": "user", "content": message}

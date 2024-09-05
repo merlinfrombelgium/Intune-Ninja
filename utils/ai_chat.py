@@ -7,14 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client
-#global client
-try:
-    if st.session_state.user_secrets['LLM_API_KEY']:
-        client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-except Exception as e:
-    logger.error(f"Error initializing OpenAI client: {str(e)}")
-    client = None
+client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
 
 def get_user_secret(key):
     if key == 'LLM_MODEL':
@@ -27,8 +20,8 @@ def get_user_secret(key):
     return st.session_state.user_secrets.get(key)
 
 def chat_with_ai(message, history, system_prompt):
-    if not client:
-        return []
+    # if not client:
+    #     client = AI_client()
     
     messages = [
         {"role": "system", "content": system_prompt['content']},
@@ -59,8 +52,8 @@ def chat_with_ai(message, history, system_prompt):
         return [(message, f"Error: {str(e)}")]
 
 def chat_with_assistant(message: str, history: list, thread_id: str = None):
-    if not client:
-        return "Error: OpenAI client is not initialized."
+    # if not client:
+    #     client = AI_client()
     
     try:
         if not get_user_secret('LLM_API_KEY'):
