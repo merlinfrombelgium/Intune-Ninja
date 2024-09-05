@@ -19,7 +19,6 @@ def load_or_init_secrets():
     if 'user_secrets' not in st.session_state:
         st.session_state.user_secrets = {
             'LLM_API_KEY': "",
-            'LLM_MODEL': "gpt-4o-mini",
             'MS_GRAPH_TENANT_ID': "",
             'MS_GRAPH_CLIENT_ID': "",
             'MS_GRAPH_CLIENT_SECRET': "",
@@ -31,6 +30,14 @@ def load_or_init_secrets():
         except FileNotFoundError:
             st.warning("Please enter your secrets in the configuration section.")
 
+    # Initialize LLM_MODEL separately
+    if 'LLM_MODEL' not in st.session_state:
+        st.session_state.LLM_MODEL = "gpt-4o-2024-08-06"  # Updated default model
+    print(f"Current LLM_MODEL: {st.session_state.LLM_MODEL}")  # Add this line
+
+def clear_secrets_input():
+    st.session_state.secrets_input = ""
+    
 # Load or initialize secrets
 load_or_init_secrets()
 
@@ -49,7 +56,7 @@ if 'first_run' not in st.session_state:
 
 # Welcome message using st.toast
 if st.session_state.first_run and not are_secrets_set():
-    st.toast("Welcome to Copilot for Intune!", icon="👋")
+    st.toast("Welcome to Copilot for Intune!", icon="🥷")
     st.session_state.first_run = False
 
 # Initialize OpenAI client
@@ -58,14 +65,15 @@ if st.session_state.user_secrets['LLM_API_KEY']:
 else:
     client = None
 
+# After initializing the client, pass it to the ai_chat module
+import utils.ai_chat
+utils.ai_chat.set_client(client)
+
 # Now import other modules
-import os, sys
-from utils.ms_graph_api import MSGraphAPI
-from utils.oai_assistant import Assistant
-from utils.ai_chat import chat_with_ai, chat_with_assistant, interpret_graph_api_url
-from utils.database import init_db, load_conversation_history, save_new_conversation, load_conversation, delete_conversation
+import os
+from utils.ai_chat import chat_with_assistant
+from utils.database import init_db, load_conversation_history
 from utils.graph_api import call_graph_api, get_graph_api_url
-from utils.ui_helpers import generate_placeholder_title
 
 # Function to mask sensitive information
 def mask_string(s):
@@ -95,12 +103,19 @@ st.markdown("""
 st.title("Copilot for Intune")
 
 # Configuration section
-with st.sidebar:
+with st.sidebar:	
     st.title("App Configuration")
     
     with st.status("Configuring...", expanded=True) as status:
         st.write("Paste all your secrets here (one per line, in the format KEY=VALUE):")
-        secrets_input = st.text_area("Secrets", height=150, help="Example format:\nLLM_API_KEY=sk-...\nMS_GRAPH_TENANT_ID=...\nMS_GRAPH_CLIENT_ID=...\nMS_GRAPH_CLIENT_SECRET=...")
+        
+        # Check if we need to clear the input
+        if st.session_state.get('clear_secrets_input', False):
+            st.session_state.secrets_input = ""
+            st.session_state.clear_secrets_input = False
+        
+        secrets_input = st.text_area("Secrets", height=150, key="secrets_input",
+                                     help="Example format:\nLLM_API_KEY=sk-...\nMS_GRAPH_TENANT_ID=...\nMS_GRAPH_CLIENT_ID=...\nMS_GRAPH_CLIENT_SECRET=...")
         
         if st.button("Update Secrets"):
             new_secrets = parse_secrets(secrets_input)
@@ -116,6 +131,10 @@ with st.sidebar:
                     utils.ai_chat.client = OpenAI(api_key=new_secrets['LLM_API_KEY'])
                 
                 st.success("Secrets updated successfully!")
+                # Set the flag to clear the input field on the next run
+                st.session_state.clear_secrets_input = True
+                # Collapse the configuration pane
+                status.update(label="Configuration complete!", state="complete", expanded=False)
                 st.rerun()  # Rerun the app to apply changes
             else:
                 st.error("No valid secrets found. Please check the format and try again.")
@@ -127,10 +146,11 @@ with st.sidebar:
         
         # OpenAI Model selection
         new_model = st.selectbox("OpenAI Model", 
-                                 ["gpt-4o-mini", "gpt-4o"], 
-                                 index=0 if st.session_state.user_secrets['LLM_MODEL'] == "gpt-4o-mini" else 1)
-        if new_model != st.session_state.user_secrets['LLM_MODEL']:
-            st.session_state.user_secrets['LLM_MODEL'] = new_model
+                                 ["gpt-4o-2024-08-06", "gpt-4o-mini"], 
+                                 index=0 if st.session_state.LLM_MODEL == "gpt-4o-2024-08-06" else 1)
+        if new_model != st.session_state.LLM_MODEL:
+            st.session_state.LLM_MODEL = new_model
+            print(f"Updated LLM_MODEL: {st.session_state.LLM_MODEL}")  # Add this line
         
         if are_secrets_set():
             status.update(label="Configuration complete!", state="complete", expanded=False)

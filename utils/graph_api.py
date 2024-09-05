@@ -1,13 +1,7 @@
 from utils.ms_graph_api import MSGraphAPI
 import json
 import streamlit as st
-from openai import OpenAI
-
-def get_user_secret(key):
-    if 'user_secrets' not in st.session_state:
-        st.error("User secrets not initialized. Please refresh the page.")
-        return None
-    return st.session_state.user_secrets.get(key)
+from utils.ai_chat import get_user_secret, client
 
 def call_graph_api(api_url):
     ms_graph_api = MSGraphAPI()
@@ -18,15 +12,21 @@ def call_graph_api(api_url):
         return f"Error calling API: {str(e)}"
 
 def get_graph_api_url(message, system_prompt):
-    client = OpenAI(api_key=get_user_secret('LLM_API_KEY'))
+    if not client:
+        st.error("OpenAI client is not initialized.")
+        return None
+
     messages = [
         {"role": "system", "content": system_prompt["content"]},
         {"role": "user", "content": message}
     ]
 
     try:
+        model = get_user_secret('LLM_MODEL')
+        print(f"Using model in get_graph_api_url: {model}")  # Debug print
+
         response = client.chat.completions.create(
-            model=get_user_secret('LLM_MODEL'),
+            model=model,
             messages=messages,
             response_format={
                 "type": "json_schema",
@@ -60,7 +60,7 @@ def get_graph_api_url(message, system_prompt):
 
         return url
     except Exception as e:
-        print(e)
+        print(f"Error in get_graph_api_url: {str(e)}")
         return None
 
 # Remove the generate_and_interpret_url function as it's not being used

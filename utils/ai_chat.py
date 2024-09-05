@@ -9,37 +9,58 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+client = None
+
+def set_client(openai_client):
+    global client
+    client = openai_client
+
 def get_user_secret(key):
+    if key == 'LLM_MODEL':
+        model = st.session_state.LLM_MODEL
+        print(f"get_user_secret returning LLM_MODEL: {model}")  # Add this line
+        return model
     if 'user_secrets' not in st.session_state:
         st.error("User secrets not initialized. Please refresh the page.")
         return None
     return st.session_state.user_secrets.get(key)
 
-client = OpenAI(api_key=get_user_secret('LLM_API_KEY'))
-
 def chat_with_ai(message, history, system_prompt):
+    if not client:
+        return []
+    
     messages = [
         {"role": "system", "content": system_prompt['content']},
         {"role": "user", "content": message}
     ]
     
-    response = client.chat.completions.create(
-        model=get_user_secret('LLM_MODEL'),
-        messages=messages,
-        temperature=0.8,
-        stream=True,
-        max_tokens=1000,
-    )
+    model = st.session_state.get('LLM_MODEL', 'gpt-4o-2024-08-06')
+    print(f"Using model in chat_with_ai: {model}")  # Add this line
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.8,
+            stream=True,
+            max_tokens=1000,
+        )
 
-    partial_response = ""
-    for stream_response in response:
-        if stream_response.choices[0].delta.content is not None:
-            partial_response += stream_response.choices[0].delta.content
-            yield [(message, partial_response)]
+        partial_response = ""
+        for stream_response in response:
+            if stream_response.choices[0].delta.content is not None:
+                partial_response += stream_response.choices[0].delta.content
+                yield [(message, partial_response)]
 
-    return [(message, partial_response)]
+        return [(message, partial_response)]
+    except Exception as e:
+        st.error(f"Error in chat_with_ai: {str(e)}")
+        return [(message, f"Error: {str(e)}")]
 
 def chat_with_assistant(message: str, history: list, thread_id: str = None):
+    if not client:
+        return "Error: OpenAI client is not initialized."
+    
     try:
         if not get_user_secret('LLM_API_KEY'):
             raise ValueError("OpenAI API key is missing or empty")
