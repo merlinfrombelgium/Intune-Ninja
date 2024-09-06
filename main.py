@@ -80,7 +80,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Copilot for Intune")
+st.title("🥷 Copilot for Intune")
 
 # Configuration section
 with st.sidebar:	
