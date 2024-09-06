@@ -88,11 +88,40 @@ def call_graph_api(api_url):
     try:
         write_debug(f":satellite: Calling API: {api_url}")
         api_response = ms_graph_api.call_api(api_url)
+        
+        # Check if there's more data available
+        next_link = api_response.get('@odata.nextLink')
+        
+        result = {
+            'data': api_response.get('value', []),
+            'next_link': next_link
+        }
+        
         write_debug(f":white_check_mark: API call successful")
-        return json.dumps(api_response, indent=2)
+        return json.dumps(result, indent=2)
     except Exception as e:
         write_debug(f":warning: Error calling API: {str(e)}")
         return f"Error calling API: {str(e)}"
+
+def get_next_batch(next_link):
+    ms_graph_api = MSGraphAPI()
+    try:
+        write_debug(f":satellite: Calling next batch: {next_link}")
+        api_response = ms_graph_api.call_api(next_link)
+        
+        # Check if there's more data available
+        new_next_link = api_response.get('@odata.nextLink')
+        
+        result = {
+            'data': api_response.get('value', []),
+            'next_link': new_next_link
+        }
+        
+        write_debug(f":white_check_mark: Next batch retrieved successfully")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        write_debug(f":warning: Error retrieving next batch: {str(e)}")
+        return f"Error retrieving next batch: {str(e)}"
 
 def get_graph_api_url(client, message, system_prompt):
     messages = [
