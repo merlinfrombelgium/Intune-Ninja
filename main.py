@@ -63,11 +63,17 @@ if st.session_state.first_run and not are_secrets_set():
 from utils.graph_api import call_graph_api, get_graph_api_url
 from utils.ai_chat import client, chat_with_assistant
 
-# Function to mask sensitive information
+# Function to mask sensitive information and return the last 5 characters
 def mask_string(s):
     if len(s) <= 15:
-        return "*" * len(s)
-    return s[:15] + "*" * (len(s) - 15)
+        return "*" * len(s), s[-5:] if s else ""
+    return s[:15] + "*" * (len(s) - 15), s[-5:]
+
+# Modify the return statement to format the output without quotes
+def mask_string(s):
+    if len(s) <= 15:
+        return f"{'*' * len(s)} {s[-5:]}" if s else ""
+    return f"{s[:15]}{'*' * (len(s) - 15)} {s[-5:]}"
 
 # Function to validate OpenAI API key format
 def is_valid_openai_api_key(api_key):
