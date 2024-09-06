@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from utils.write_debug import write_debug, clear_debug_messages
+from textwrap import dedent
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -304,7 +305,8 @@ with col2:
             graph_api_response = st.session_state.get("graph_api_response", "")
             thread_id = get_or_create_thread_id()
             
-            interpretation_prompt = f"""Interpret the following Graph API call:
+            interpretation_prompt = f"""\
+            Interpret the following Graph API call:
 
             This was my request:
             {user_input}
@@ -314,9 +316,9 @@ with col2:
             Response: {graph_api_response}
 
             Please provide a clear and concise interpretation of this data.
-"""
+            """
             
-            ai_interpretation = chat_with_assistant(interpretation_prompt, [], thread_id)
+            ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
             
             st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
         

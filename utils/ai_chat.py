@@ -3,6 +3,7 @@ import streamlit as st
 from openai import OpenAI
 from utils.oai_assistant import Assistant
 import logging
+from textwrap import dedent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -148,17 +149,19 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
         return error_message
 
 def interpret_graph_api_url(url, thread_id: str = None):
-    prompt = f"""Interpret and explain the following Graph API URL: {url}
+    prompt = f"""\
+    Interpret and explain the following Graph API URL: {url}
 
-Provide a brief explanation of what this URL does and what kind of data it will retrieve.
-If you think the URL could be improved or modified, suggest changes and explain why.
-Format your response as follows:
+    Provide a brief explanation of what this URL does and what kind of data it will retrieve.
+    If you think the URL could be improved or modified, suggest changes and explain why.
+    Format your response as follows:
 
-Interpretation: [Your interpretation here]
-Suggested Changes: [Your suggested changes here, or 'None' if no changes are needed]
-Modified URL: [The modified URL if changes are suggested, or the original URL if no changes are needed]"""
+    Interpretation: [Your interpretation here]
+    Suggested Changes: [Your suggested changes here, or 'None' if no changes are needed]
+    Modified URL: [The modified URL if changes are suggested, or the original URL if no changes are needed]
+    """
 
-    response = chat_with_assistant(prompt, [], thread_id)
+    response = chat_with_assistant(dedent(prompt), [], thread_id)
     return {
         "interpretation": response.split("Interpretation:")[1].split("Suggested Changes:")[0].strip(),
         "suggested_changes": response.split("Suggested Changes:")[1].split("Modified URL:")[0].strip(),
