@@ -80,14 +80,14 @@ def mask_string(s):
 def is_valid_openai_api_key(api_key):
     return api_key.startswith('sk-') or api_key.startswith('sk-proj-')
 
-# Remove the custom CSS for the labeled expander
-st.markdown("""
-<style>
-    /* Remove the labeled-expander styles */
-</style>
-""", unsafe_allow_html=True)
+# # Remove the custom CSS for the labeled expander
+# st.markdown("""
+# <style>
+#     /* Remove the labeled-expander styles */
+# </style>
+# """, unsafe_allow_html=True)
 
-st.title("🥷 Copilot for Intune")
+st.title(":ninja: Copilot for Intune", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
 
 # Configuration section
 with st.sidebar:	
@@ -186,6 +186,12 @@ with col1:
         selected_example = st.selectbox(label="Examples", options=[""] + examples)
         
         submit_button = st.form_submit_button(label='Get Graph API URL')
+
+    with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
+        def update_system_prompt():
+            system_prompt["content"]=st.session_state.graph_api_prompt
+            print(system_prompt["content"])
+        st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", height=300, on_change=update_system_prompt)
     
     if selected_example:
         user_input = selected_example
