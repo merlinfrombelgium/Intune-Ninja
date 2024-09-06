@@ -289,9 +289,6 @@ with col1:
             st.rerun()
 
 with col2:
-    # st.header("Have a conversation with an advanced AI")
-    # st.subheader("(Threads, Reasoning, Tools, Functions)")
-    
     # Add a Clear button
     if st.button("Clear Conversation"):
         st.session_state.messages = []
@@ -305,32 +302,36 @@ with col2:
     # Chat input at the top
     prompt = st.chat_input("Type something here...")
 
+    # Create a container for the spinner
+    spinner_container = st.empty()
+
     # Create a container for the conversation
-    conversation_container = st.container(height=None, border= True)  # Dynamically set height based on available space
+    conversation_container = st.container(height=None, border=True)
 
     # Handle interpretation of API result
     if st.session_state.get("interpret_url", False):
-        with st.spinner("Interpreting Graph API Response..."):
-            graph_api_url = st.session_state.get("graph_api_url", "")
-            graph_api_response = st.session_state.get("graph_api_response", "")
-            thread_id = get_or_create_thread_id()
-            
-            interpretation_prompt = f"""\
-            Interpret the following Graph API call:
+        with spinner_container:
+            with st.spinner("Interpreting Graph API Response..."):
+                graph_api_url = st.session_state.get("graph_api_url", "")
+                graph_api_response = st.session_state.get("graph_api_response", "")
+                thread_id = get_or_create_thread_id()
+                
+                interpretation_prompt = f"""\
+                Interpret the following Graph API call:
 
-            This was my request:
-            {user_input}
+                This was my request:
+                {user_input}
 
-            This was the Graph API call you provided:
-            URL: {graph_api_url}
-            Response: {graph_api_response}
+                This was the Graph API call you provided:
+                URL: {graph_api_url}
+                Response: {graph_api_response}
 
-            Please provide a clear and concise interpretation of this data.
-            """
-            
-            ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
-            
-            st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
+                Please provide a clear and concise interpretation of this data.
+                """
+                
+                ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
+                
+                st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
         
         # Reset the flag
         st.session_state.interpret_url = False
@@ -346,11 +347,14 @@ with col2:
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        with st.chat_message("assistant"):
+        with spinner_container:
             with st.spinner("AI is thinking..."):
                 thread_id = get_or_create_thread_id()
                 full_response = chat_with_assistant(prompt, st.session_state.messages, thread_id)
-            full_response
+        
+        with conversation_container:
+            with st.chat_message("assistant"):
+                st.markdown(full_response)
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         st.rerun()
