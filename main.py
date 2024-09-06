@@ -204,7 +204,10 @@ with col1:
 
     # Add back the Graph API URL form
     def update_url():
-        st.session_state.graph_api_url = st.session_state.graph_api_base_url + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + "?" + st.session_state.graph_api_parameters
+        if st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
+            st.session_state.graph_api_url = st.session_state.graph_api_complete_url
+        else:
+            st.session_state.graph_api_url = st.session_state.graph_api_base_url + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + "?" + st.session_state.graph_api_parameters
     
     if "graph_api_url" in st.session_state:
         with st.form(key='graph_api_form'):
@@ -243,7 +246,7 @@ with col1:
                 label="Complete URL",
                 value=st.session_state.graph_api_url,
                 key="graph_api_complete_url",
-                disabled=True
+                disabled=False
             )
             submit_api_call = st.form_submit_button(label="Call Graph API")
         
