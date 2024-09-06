@@ -16,7 +16,8 @@ class MSGraphAPI:
             st.error("One or more required secrets are missing. Please check your configuration.")
             return
 
-        self.base_url = "https://graph.microsoft.com/v1.0"
+        self.base_url = "https://graph.microsoft.com/"
+        self.version = any(version for version in ['v1.0', 'beta'])
         write_debug("Attempting to get access token...")
         self.token = self.get_access_token()
 

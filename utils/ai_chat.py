@@ -56,8 +56,6 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
     #     client = AI_client()
     
     try:
-        if not get_user_secret('LLM_API_KEY'):
-            raise ValueError("OpenAI API key is missing or empty")
 
         logger.info(f"Starting chat_with_assistant. Message: {message[:50]}...")
 
@@ -106,23 +104,23 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
                 raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
             logger.info(f"Retrieved assistant. ID: {st.session_state.IntuneCopilotAssistant.id}")
 
-        with st.spinner("Processing your request..."):
-            run = client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=st.session_state.IntuneCopilotAssistant.id,
-                instructions="Please provide a detailed response. You can use up to 4000 tokens if needed."
-            )
-            logger.info(f"Created run. ID: {run.id}")
+        # with st.spinner("Processing your request..."):
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=st.session_state.IntuneCopilotAssistant.id,
+            instructions="Please be concise and to the point. Stick to the context of Intune and Graph API. Politely decline to answer out of scope questions. It's okay to use humor."
+        )
+        logger.info(f"Created run. ID: {run.id}")
 
-            while run.status != "completed":
-                run = client.beta.threads.runs.retrieve(
-                    thread_id=thread_id,
-                    run_id=run.id
-                )
-                logger.info(f"Run status: {run.status}")
-                if run.status == "failed":
-                    raise Exception(f"Run failed. Error: {run.last_error}")
-                time.sleep(0.5)
+        while run.status != "completed":
+            run = client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+            logger.info(f"Run status: {run.status}")
+            if run.status == "failed":
+                raise Exception(f"Run failed. Error: {run.last_error}")
+            time.sleep(0.5)
 
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         logger.info(f"Retrieved messages. Count: {len(messages.data)}")

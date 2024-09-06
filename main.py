@@ -197,21 +197,59 @@ with col1:
             st.error("Failed to generate Graph API URL. Please try again.")
 
     # Add back the Graph API URL form
+    def update_url():
+        st.session_state.graph_api_url = st.session_state.graph_api_base_url + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + "?" + st.session_state.graph_api_parameters
+    
     if "graph_api_url" in st.session_state:
         with st.form(key='graph_api_form'):
-            updated_url = st.text_area(
-                label="Graph API Request URL",
+            st.text_input(
+                label="Base URL",
+                value="https://graph.microsoft.com/",
+                key="graph_api_base_url",
+                disabled=True
+            )
+            API_version = st.radio(
+                label="API version",
+                options=["v1.0", "beta"],
+                horizontal=True,
+                key="graph_api_choice",
+                # on_change=update_url
+            )
+            # if API_version == "beta":
+            #     st.session_state.graph_api_version = "beta"
+            # else:
+            #     st.session_state.graph_api_version = "v1.0"
+
+            st.text_input(
+                label="endpoint",
+                value=st.session_state.graph_api_url.split("/")[4].split("?")[0],
+                key="graph_api_endpoint",
+                # on_change=update_url
+            )
+            st.text_input(
+                label="parameters",
+                value=st.session_state.graph_api_url.split("?")[1] if "?" in st.session_state.graph_api_url else "",
+                key="graph_api_parameters",
+                # on_change=update_url
+            )
+            update_url_button = st.form_submit_button(label="Update URL")
+            st.text_input(
+                label="Complete URL",
                 value=st.session_state.graph_api_url,
-                key="graph_api_url_display",
-                height=100
+                key="graph_api_complete_url",
+                disabled=True
             )
             submit_api_call = st.form_submit_button(label="Call Graph API")
         
+        if update_url_button:
+            update_url()
+            st.rerun()
+
         if submit_api_call:
             with st.spinner("Calling Graph API..."):
                 # Update the session state with the potentially modified URL
-                st.session_state.graph_api_url = updated_url
-                st.session_state.graph_api_response = call_graph_api(updated_url)
+                # st.session_state.graph_api_url = updated_url
+                st.session_state.graph_api_response = call_graph_api(st.session_state.graph_api_url)
 
     # Display the Graph API response in a scrollable window and add an interpret button
     if st.session_state.get("graph_api_response"):
@@ -245,10 +283,10 @@ with col2:
         st.session_state.messages = []
 
     # Chat input at the top
-    prompt = st.chat_input("What is your question?")
+    prompt = st.chat_input("Type something here...")
 
     # Create a container for the conversation
-    conversation_container = st.container()
+    conversation_container = st.container(height=None, border= True)  # Dynamically set height based on available space
 
     # Handle interpretation of API result
     if st.session_state.get("interpret_url", False):
@@ -257,12 +295,16 @@ with col2:
             graph_api_response = st.session_state.get("graph_api_response", "")
             thread_id = get_or_create_thread_id()
             
-            interpretation_prompt = f"""Interpret the following Graph API response:
+            interpretation_prompt = f"""Interpret the following Graph API call:
 
-URL: {graph_api_url}
-Response: {graph_api_response}
+            This was my request:
+            {user_input}
 
-Please provide a clear and concise interpretation of this data.
+            This was the Graph API call you provided:
+            URL: {graph_api_url}
+            Response: {graph_api_response}
+
+            Please provide a clear and concise interpretation of this data.
 """
             
             ai_interpretation = chat_with_assistant(interpretation_prompt, [], thread_id)
