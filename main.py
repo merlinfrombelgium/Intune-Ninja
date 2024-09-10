@@ -218,18 +218,26 @@ with col1:
         if st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
             st.session_state.graph_api_url = st.session_state.graph_api_complete_url
         else:
-            st.session_state.graph_api_url = st.session_state.graph_api_base_url + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + "?" + st.session_state.graph_api_parameters
+            st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
     
     if "graph_api_url" in st.session_state:
         with st.form(key='graph_api_form'):
+            # st.text_input(
+            #     label="Base URL",
+            #     value=st.session_state.graph_api_json["base_url"],
+            #     key="graph_api_base_url",
+            #     disabled=True
+            # )
             st.text_input(
-                label="Base URL",
-                value=st.session_state.graph_api_json["base_url"],
-                key="graph_api_base_url",
-                disabled=True
+                label="Complete URL",
+                value=st.session_state.graph_api_url,
+                key="graph_api_complete_url",
+                disabled=False,
             )
-            API_version = st.radio(
-                label="API version",
+            col_graph_left, col_graph_right = st.columns([0.2, 0.8])
+            with col_graph_left:
+                API_version = st.radio(
+                    label="API version",
                 options=["v1.0", "beta"],
                 index=0 if st.session_state.graph_api_json["version"] == "v1.0" else 1,
                 horizontal=True,
@@ -240,9 +248,9 @@ with col1:
             #     st.session_state.graph_api_version = "beta"
             # else:
             #     st.session_state.graph_api_version = "v1.0"
-
-            st.text_input(
-                label="endpoint",
+            with col_graph_right:
+                st.text_input(
+                    label="endpoint",
                 value=st.session_state.graph_api_json["endpoint"],
                 key="graph_api_endpoint",
                 # on_change=update_url
@@ -253,14 +261,11 @@ with col1:
                 key="graph_api_parameters",
                 # on_change=update_url
             )
-            st.text_area(
-                label="Complete URL",
-                value=st.session_state.graph_api_url,
-                key="graph_api_complete_url",
-                disabled=False
-            )
-            update_url_button = st.form_submit_button(label="Update URL")
-            submit_api_call = st.form_submit_button(label="Call Graph API")
+            col_graph_submit_left, col_graph_submit_right = st.columns(2)
+            with col_graph_submit_left:
+                update_url_button = st.form_submit_button(label="Update URL")
+            with col_graph_submit_right:
+                submit_api_call = st.form_submit_button(label="Call Graph API")
 
         if update_url_button:
             update_url()
