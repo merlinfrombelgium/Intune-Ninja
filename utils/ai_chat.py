@@ -4,11 +4,14 @@ from openai import OpenAI
 from utils.oai_assistant import Assistant
 import logging
 from textwrap import dedent
-
+from utils.write_debug import write_debug
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+if not client:
+    write_debug("OpenAI client not initialized. Please refresh the page.")
+    st.stop()
 
 def get_user_secret(key):
     if key == 'LLM_MODEL':

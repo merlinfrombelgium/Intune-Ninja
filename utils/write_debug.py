@@ -16,7 +16,9 @@ def write_debug(message):
         with st.expander("Debug Info", expanded=False, icon="🔎"):
             # st.text_area("Debug Info", label_visibility="collapsed", value="\n".join(st.session_state.debug_messages), height=300)
             # st.session_state.debug_messages.reverse()
-            for message in st.session_state.debug_messages:
+            for message in reversed(st.session_state.debug_messages):
+                if '$' in message:
+                    message = message.replace('$', '\$')
                 st.markdown(message)
 
 # Add this function to clear debug messages

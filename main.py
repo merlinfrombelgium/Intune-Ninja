@@ -13,7 +13,7 @@ def parse_secrets(secrets_text):
     return secrets
 
 # Streamlit UI setup
-st.set_page_config(page_title="Copilot for Intune", layout="wide")
+st.set_page_config(page_title="Copilot for Intune", layout="wide") # This is how our app can be found through the Streamlit search engine
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
@@ -58,6 +58,7 @@ if 'first_run' not in st.session_state:
 # Welcome message using st.toast
 if st.session_state.first_run and not are_secrets_set():
     st.toast("Welcome to Copilot for Intune!", icon="🥷")
+    client = None
     st.session_state.first_run = False
 
 # Load modules depending on secrets
@@ -290,10 +291,20 @@ with col1:
 
 with col2:
     # Add a Clear button
-    if st.button("Clear Conversation"):
-        st.session_state.messages = []
-        st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
-        clear_debug_messages()  # Clear debug messages
+    if st.button("Clear Everything"):
+        st.cache_resource.clear()
+        client.close()
+        # st.session_state.messages = []
+        # st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
+        # clear_debug_messages()  # Clear debug messages
+        # st.session_state.graph_api_response = ""
+        # st.session_state.graph_api_url = ""
+        # st.session_state.graph_api_json = ""
+        # st.session_state.graph_api_base_url = ""
+        # st.session_state.graph_api_choice = ""
+        # st.session_state.graph_api_endpoint = ""
+        # st.session_state.graph_api_parameters = ""
+        st.session_state.graph_api_complete_url = ""
         st.rerun()
     
     if "messages" not in st.session_state:

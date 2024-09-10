@@ -136,6 +136,7 @@ def get_graph_api_url(client, message, system_prompt):
         response = client.chat.completions.create(
             model=model,
             messages=messages,
+            timeout=10,
             response_format={
                 "type": "json_schema",
                 "json_schema": {
@@ -167,8 +168,8 @@ def get_graph_api_url(client, message, system_prompt):
         else:
             url = f"{content_json['base_url']}{content_json['version']}/{content_json['endpoint'].strip('/')}"
 
-        # write_debug(f"Generated URL: {url}")
-        # write_debug(f"Generated URL in JSON: {content_json}")
+        write_debug(f"Generated URL: {url}")
+        write_debug(f"Generated URL in JSON: {content_json}")
         return {"url": url, "json": content_json}
     except Exception as e:
         write_debug(f"Error in get_graph_api_url: {str(e)}")
