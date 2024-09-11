@@ -56,8 +56,8 @@ class MSGraphAPI:
             st.error(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
             raise ValueError(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
 
-    def call_api(self, endpoint, method='GET', data=None):
-        url = f"{endpoint}" if endpoint.startswith(self.base_url) else f"{self.base_url}/{endpoint}"
+    def call_api(self, request, method='GET', data=None):
+        url = f"{request}" if request.startswith(self.base_url) else f"{self.base_url}/{request}"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
@@ -85,23 +85,23 @@ class MSGraphAPI:
 
 def call_graph_api(api_url):
     ms_graph_api = MSGraphAPI()
+    write_debug(f":satellite: Calling API: {api_url}")
     try:
-        write_debug(f":satellite: Calling API: {api_url}")
         api_response = ms_graph_api.call_api(api_url)
-        
-        # Check if there's more data available
-        next_link = api_response.get('@odata.nextLink')
-        
-        result = {
-            'data': api_response.get('value', []),
-            'next_link': next_link
-        }
-        
-        write_debug(f":white_check_mark: API call successful")
-        return json.dumps(result, indent=2)
     except Exception as e:
         write_debug(f":warning: Error calling API: {str(e)}")
         return f"Error calling API: {str(e)}"
+    
+    # Check if there's more data available
+    next_link = api_response.get('@odata.nextLink')
+    
+    result = {
+        'data': api_response.get('value', []),
+        'next_link': next_link
+    }
+    
+    write_debug(f":white_check_mark: API call successful")
+    return json.dumps(result, indent=2)
 
 def get_next_batch(next_link):
     ms_graph_api = MSGraphAPI()

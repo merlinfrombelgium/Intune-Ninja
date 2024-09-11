@@ -81,6 +81,15 @@ def mask_string(s):
 def is_valid_openai_api_key(api_key):
     return api_key.startswith('sk-') or api_key.startswith('sk-proj-')
 
+def invoke_graph_api(url):
+    response = call_graph_api(st.session_state.graph_api_url)
+    if "Error 400" in response:
+        write_debug("Bad Request. Trying to get metadata instead.")
+        st.warning("Bad Request. Trying to get metadata instead.")
+        st.session_state.bad_request = True
+        st.session_state.metadata = call_graph_api(st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
+    return response
+
 # # Remove the custom CSS for the labeled expander
 # st.markdown("""
 # <style>
@@ -209,7 +218,7 @@ with col1:
             st.session_state.graph_api_json = graph_api_url["json"]
             # Call Graph API immediately
             with st.spinner("Calling Graph API..."):
-                st.session_state.graph_api_response = call_graph_api(st.session_state.graph_api_url)
+                st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
 
@@ -217,6 +226,11 @@ with col1:
     def update_url():
         if st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
             st.session_state.graph_api_url = st.session_state.graph_api_complete_url
+            st.session_state.graph_api_json = {
+                "version": st.session_state.graph_api_choice,
+                "endpoint": "",
+                "parameters": []
+            }
         else:
             st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
     
@@ -257,7 +271,7 @@ with col1:
             )
             st.text_area(
                 label="parameters",
-                value="\n".join(st.session_state.graph_api_json["parameters"]),
+                value="\n&".join(st.session_state.graph_api_json["parameters"]),
                 key="graph_api_parameters",
                 # on_change=update_url
             )
@@ -275,7 +289,8 @@ with col1:
             with st.spinner("Calling Graph API..."):
                 # Update the session state with the potentially modified URL
                 # st.session_state.graph_api_url = updated_url
-                st.session_state.graph_api_response = call_graph_api(st.session_state.graph_api_url)
+                st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
+                st.rerun()
 
     # Display the Graph API response in a scrollable window and add an interpret button
     if st.session_state.get("graph_api_response"):
@@ -288,7 +303,11 @@ with col1:
                 height=300,
                 key="graph_api_response_col1"
             )
-            interpret_button = st.form_submit_button(label="Interpret Response")
+            interpret_button = (
+                st.form_submit_button(label="Interpret Response")
+                if st.session_state.bad_request == False
+                else st.form_submit_button(label="Fix it!")
+            )
         
         if interpret_button:
             st.session_state.interpret_url = True
@@ -340,9 +359,23 @@ with col2:
 
                 This was the Graph API call you provided:
                 URL: {graph_api_url}
-                Response: {graph_api_response}
+                Response: {graph_api_response}"""
 
-                Please provide a clear and concise interpretation of this data.
+                if st.session_state.bad_request == True:
+                    interpretation_prompt += f"""\
+                        That didn't work. Here's the metadata for the endpoint:
+                        {st.session_state.metadata}
+
+                        Is this the correct endpoint? Use your file_search tool to consult the documentation.
+                        Based on the available object properties, provide the correct endpoint and parameters in this format:
+                        API version:
+                        Endpoint:
+                        Parameters:
+                """
+                    st.session_state.bad_request = False
+                else:
+                    interpretation_prompt += f"""\
+                    Inerpret the response and provide a clear and concise summary.
                 """
                 
                 ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
