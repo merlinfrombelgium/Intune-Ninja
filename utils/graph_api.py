@@ -5,6 +5,8 @@ from requests.exceptions import HTTPError
 from utils.ai_chat import get_user_secret
 from utils.write_debug import write_debug
 
+global client
+
 class MSGraphAPI:
     def __init__(self):
         write_debug(":clock1: Calling MS Graph API...")

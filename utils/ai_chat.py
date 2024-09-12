@@ -8,10 +8,10 @@ from utils.write_debug import write_debug
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-if not client:
-    write_debug("OpenAI client not initialized. Please refresh the page.")
-    st.stop()
+# client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+# if not client:
+#     write_debug("OpenAI client not initialized. Please refresh the page.")
+#     st.stop()
 
 def get_user_secret(key):
     if key == 'LLM_MODEL':
@@ -22,6 +22,15 @@ def get_user_secret(key):
         st.error("User secrets not initialized. Please refresh the page.")
         return None
     return st.session_state.user_secrets.get(key)
+
+def initialize_client():
+    global client
+    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
+    if not client:
+        st.error("OpenAI client not initialized. Please refresh the page.")
+        st.stop()
+    else:
+        return client
 
 def chat_with_ai(message, history, system_prompt):
     # if not client:
@@ -183,3 +192,18 @@ def interpret_graph_api_url(url, thread_id: str = None):
         "suggested_changes": response.split("Suggested Changes:")[1].split("Modified URL:")[0].strip(),
         "modified_url": response.split("Modified URL:")[1].strip()
     }
+
+def check_client_status(client):
+    try:
+        # Attempt a simple API call to check if the client is working
+        client.models.list()
+        return "ready" #, "Client is ready and connected."
+    except Exception as e:
+        return "error", f"Error: {str(e)}"
+
+# Add this function to check and update client status
+def update_client_status():
+    status = check_client_status(client)
+    st.session_state.client_status = status
+    #st.session_state.client_status_message = message
+

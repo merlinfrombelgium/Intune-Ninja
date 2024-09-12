@@ -2,6 +2,8 @@ import os
 import streamlit as st
 from utils.write_debug import write_debug, clear_debug_messages
 from textwrap import dedent
+from utils.graph_api import call_graph_api, get_graph_api_url
+from utils.ai_chat import initialize_client, chat_with_assistant, check_client_status, update_client_status
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -36,11 +38,18 @@ def load_or_init_secrets():
         st.session_state.LLM_MODEL = "gpt-4o-2024-08-06"  # Updated default model
     # print(f"Current LLM_MODEL: {st.session_state.LLM_MODEL}")  # Add this line
 
+    # Initialize client status
+    if 'client_status' not in st.session_state:
+        st.session_state.client_status = "unknown"
+       # st.session_state.client_status_message = "Checking client status..."
+
 def clear_secrets_input():
     st.session_state.secrets_input = ""
     
 # Load or initialize secrets
 load_or_init_secrets()
+global client
+client = initialize_client()
 
 # Function to check if secrets are set
 def are_secrets_set():
@@ -57,13 +66,12 @@ if 'first_run' not in st.session_state:
 
 # Welcome message using st.toast
 if st.session_state.first_run and not are_secrets_set():
-    st.toast("Welcome to Copilot for Intune!", icon="🥷")
-    client = None
+    st.toast("Intune Ninja says hi!", icon="🥷")
     st.session_state.first_run = False
 
-# Load modules depending on secrets
-from utils.graph_api import call_graph_api, get_graph_api_url
-from utils.ai_chat import client, chat_with_assistant
+# if not client:
+#     client = initialize_client()
+#     st.success("OpenAI client initialized successfully!")
 
 # Modify the return statement to format the output without quotes
 def mask_string(s):
@@ -78,8 +86,8 @@ def is_valid_openai_api_key(api_key):
 def invoke_graph_api(url):
     response = call_graph_api(st.session_state.graph_api_url)
     if "Error 400" in response:
-        write_debug("Bad Request. Trying to get metadata instead.")
-        st.warning("Bad Request. Trying to get metadata instead.")
+        write_debug(":negative_squared_cross_mark: Bad Request. Trying to get metadata instead.")
+        #st.warning("Bad Request. Trying to get metadata instead.")
         st.session_state.bad_request = True
         st.session_state.metadata = call_graph_api(st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
     return response
@@ -132,9 +140,18 @@ with st.sidebar:
         
         if are_secrets_set():
             status.update(label="Configuration complete!", state="complete", expanded=False)
+            update_client_status()
         else:
             status.update(label="Please complete the configuration", state="running")
 
+    st.session_state.debug_container = st.empty()
+    st.divider()
+    st.subheader(f"OpenAI Client Status: " + (":white_check_mark:" if st.session_state.client_status == "ready" else ":x:"))
+    
+    # Add a button to manually refresh the client status
+    if st.button("Refresh Client Status"):
+        update_client_status()
+    
 # Add this to the top of the file, after other initializations
 if 'graph_api_response' not in st.session_state:
     st.session_state.graph_api_response = ""
@@ -297,8 +314,8 @@ with col1:
             )
             interpret_button = (
                 st.form_submit_button(label="Interpret Response")
-                if st.session_state.bad_request == False
-                else st.form_submit_button(label="Fix it!")
+                if 'bad_request' not in st.session_state or st.session_state.bad_request == False
+                else st.form_submit_button(label="🛠️ :red[Fix it!]")
             )
         
         if interpret_button:
@@ -408,3 +425,4 @@ with col2:
 
 # At the end of the file, add this to ensure debug info is always displayed
 write_debug("")
+update_client_status()
