@@ -136,7 +136,7 @@ def get_graph_api_url(client, message, system_prompt):
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            timeout=10,
+            timeout=160,
             response_format={
                 "type": "json_schema",
                 "json_schema": {

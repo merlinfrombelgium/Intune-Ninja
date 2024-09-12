@@ -13,7 +13,7 @@ def parse_secrets(secrets_text):
     return secrets
 
 # Streamlit UI setup
-st.set_page_config(page_title="Copilot for Intune", layout="wide") # This is how our app can be found through the Streamlit search engine
+st.set_page_config(page_title="Intune Ninja", layout="wide") # This is how our app can be found through the Streamlit search engine
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
@@ -65,12 +65,6 @@ if st.session_state.first_run and not are_secrets_set():
 from utils.graph_api import call_graph_api, get_graph_api_url
 from utils.ai_chat import client, chat_with_assistant
 
-# Function to mask sensitive information and return the last 5 characters
-def mask_string(s):
-    if len(s) <= 15:
-        return "*" * len(s), s[-5:] if s else ""
-    return s[:15] + "*" * (len(s) - 15), s[-5:]
-
 # Modify the return statement to format the output without quotes
 def mask_string(s):
     if len(s) <= 15:
@@ -90,14 +84,7 @@ def invoke_graph_api(url):
         st.session_state.metadata = call_graph_api(st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
     return response
 
-# # Remove the custom CSS for the labeled expander
-# st.markdown("""
-# <style>
-#     /* Remove the labeled-expander styles */
-# </style>
-# """, unsafe_allow_html=True)
-
-st.title(":ninja: Copilot for Intune", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
+st.title(":ninja: Intune Ninja", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
 
 # Configuration section
 with st.sidebar:	
@@ -157,10 +144,15 @@ def get_or_create_thread_id():
         st.session_state.thread_id = client.beta.threads.create().id
     return st.session_state.thread_id
 
-# Load system prompt
+# Load system prompt and assistant prompt
 system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
 with open(system_prompt_file, 'r') as file:
     system_prompt = {"role": "system", "content": file.read().strip()}
+
+assistant_prompt_file = os.sep.join([os.curdir, "prompts", "assistant_instructions.md"])
+with open(assistant_prompt_file, 'r') as file:
+    assistant_prompt = {"role": "assistant", "content": file.read().strip()}
+    st.session_state.assistant_prompt = assistant_prompt["content"]
 
 # Add this CSS to create a vertical separator
 st.markdown("""
@@ -195,13 +187,13 @@ with col1:
         examples = ["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"]
         selected_example = st.selectbox(label="Examples", options=[""] + examples)
         
-        submit_button = st.form_submit_button(label='Get Graph API URL')
+        submit_button = st.form_submit_button(label='Get Graph API URL', help=f"Prompt: {system_prompt['content']}")
 
-    with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
-        def update_system_prompt():
-            system_prompt["content"]=st.session_state.graph_api_prompt
-            print(system_prompt["content"])
-        st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", height=300, on_change=update_system_prompt)
+    # with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
+    #     def update_system_prompt():
+    #         system_prompt["content"]=st.session_state.graph_api_prompt
+    #         print(system_prompt["content"])
+    #     st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", on_change=update_system_prompt, disabled=True)
     
     if selected_example:
         user_input = selected_example
@@ -300,7 +292,7 @@ with col1:
                 label="Graph API Response",
                 label_visibility="collapsed",
                 value=st.session_state.graph_api_response,
-                height=300,
+                height=250,
                 key="graph_api_response_col1"
             )
             interpret_button = (
@@ -330,7 +322,13 @@ with col2:
         # st.session_state.graph_api_parameters = ""
         st.session_state.graph_api_complete_url = ""
         st.rerun()
-    
+
+    with st.expander("Prompt", expanded=False):
+        def update_assistant_prompt():
+            assistant_prompt['content'] = st.session_state.assitant_prompt
+            print(assistant_prompt['content'])
+        st.text_area(label="A set of instructions for the AI assistant", label_visibility="visible", height=500, key="assistant_prompt", value=f"{assistant_prompt['content']}", on_change=update_assistant_prompt)
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
