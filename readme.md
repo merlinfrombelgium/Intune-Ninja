@@ -15,7 +15,7 @@ Intune Ninja is an AI-powered tool that provides insights on Intune data using M
 
 No need for installation thanks to our Streamlit app!
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://intunecopilot.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://intuneninja.streamlit.app/)
 
 <details>
 <summary>Instructions for manual installation</summary>
