@@ -1,8 +1,8 @@
-# Copilot for Intune
+# Intune Ninja
 
 ## Overview
 
-Copilot for Intune is an AI-powered tool that provides insights on Intune data using Microsoft Graph API. It allows users to interact with the AI to retrieve information and perform actions related to Intune.
+Intune Ninja is an AI-powered tool that provides insights on Intune data using Microsoft Graph API. It allows users to interact with the AI to retrieve information and perform actions related to Intune.
 
 ## Features
 
