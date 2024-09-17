@@ -121,6 +121,7 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=st.session_state.IntuneCopilotAssistant.id,
+            tools=[{"type": "file_search"}],
             # instructions="Please be concise and to the point. Stick to the context of Intune and Graph API. Politely decline to answer out of scope questions. It's okay to use humor."
             instructions="""
             You are an AI assistant specialized in Microsoft Intune, Entra ID and Windows 10/11. Based on a user's natural language request, you are to provide guidance and advanced insights on the Graph request needed to provide an answer to the user's question. Use the knowledge base provided to you. (file_search)

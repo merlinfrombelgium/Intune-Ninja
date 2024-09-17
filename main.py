@@ -4,6 +4,7 @@ from utils.write_debug import write_debug, clear_debug_messages
 from textwrap import dedent
 from utils.graph_api import call_graph_api, get_graph_api_url
 from utils.ai_chat import initialize_client, chat_with_assistant, check_client_status, update_client_status
+import json
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -224,7 +225,7 @@ with col1:
         user_input = selected_example
         # st.rerun()
     
-    if submit_button:
+    if submit_button or (user_input and user_input != st.session_state.get("last_query", "")):
         #reset_state()
         st.session_state.last_query = user_input
         with st.spinner("Generating Graph API URL..."):
@@ -242,7 +243,11 @@ with col1:
 
     # Add back the Graph API URL form
     def update_url():
-        if st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
+        if "new_url" in st.session_state:
+            st.session_state.graph_api_url = st.session_state.new_url
+            st.balloons()
+            del st.session_state["new_url"]
+        elif st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
             st.session_state.graph_api_url = st.session_state.graph_api_complete_url
             st.session_state.graph_api_json = {
                 "version": st.session_state.graph_api_choice,
@@ -250,9 +255,16 @@ with col1:
                 "parameters": []
             }
         else:
-            st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
-    
-    if "graph_api_url" and "graph_api_json" in st.session_state:
+            try:
+                st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
+            except:
+                try:
+                    st.session_state.graph_api_url = "https://graph.microsoft.com/" + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
+                except Exception as e:
+                    st.error(f"Error updating URL: {e}")
+                    st.stop()
+
+    if "graph_api_url" in st.session_state:
         with st.form(key='graph_api_form'):
             # st.text_input(
             #     label="Base URL",
@@ -329,32 +341,25 @@ with col1:
         
         if interpret_button:
             st.session_state.interpret_url = True
-            #st.rerun()
+            st.rerun()
 
 with col2:
     # Add a Clear button
     if st.button("Clear Everything"):
         st.cache_resource.clear()
-        reset_state()
         client.close()
         # st.session_state.messages = []
         # st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
         # clear_debug_messages()  # Clear debug messages
-        # st.session_state.user_input = ""
-        # st.session_state.bad_request = False
         # st.session_state.graph_api_response = ""
-        # del st.session_state["graph_api_url"]
-        # del st.session_state["graph_api_json"]
-        # # st.session_state.graph_api_base_url = ""
-        # # st.session_state.graph_api_choice = ""
-        # # st.session_state.graph_api_endpoint = ""
-        # # st.session_state.graph_api_parameters = ""
-        # del st.session_state["graph_api_complete_url"]
-        for key in st.session_state.keys():
-            if key not in ['user_secrets', 'LLM_MODEL']:
-                del st.session_state[key]
-        st.session_state.bad_request = False
-        #st.rerun()
+        # st.session_state.graph_api_url = ""
+        # st.session_state.graph_api_json = ""
+        # st.session_state.graph_api_base_url = ""
+        # st.session_state.graph_api_choice = ""
+        # st.session_state.graph_api_endpoint = ""
+        # st.session_state.graph_api_parameters = ""
+        st.session_state.graph_api_complete_url = ""
+        st.rerun()
 
     with st.expander("Prompt", expanded=False):
         def update_assistant_prompt():
@@ -398,28 +403,47 @@ with col2:
                         {st.session_state.metadata}
 
                         Is this the correct endpoint? Use your file_search tool to consult the documentation.
-                        Based on the available object properties, provide the correct endpoint and parameters in this format:
-                        API version:
-                        Endpoint:
-                        Parameters:
-                """
+                        Based on the available object properties, provide the correct endpoint and parameters.
+
+                        Please provide your response in the following format:
+                        1. Explanation: [Explain what was wrong with the original URL and why the new one is correct]
+                        2. New URL: [Provide the corrected URL as a code block in markdown format]
+
+                        Example format for the New URL:
+                        ```
+                        https://graph.microsoft.com/v1.0/endpoint?param1=value1&param2=value2
+                        ```
+
+                        Ensure that the new URL is correct and complete.
+                    """
                     st.session_state.bad_request = False
                 else:
                     interpretation_prompt += f"""\
                     Interpret the response and provide a clear and concise summary.
-                """
+                    """
                 
                 ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
                 
                 st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
+                
+                print("Parsing AI response for new URL...")
+                import re
+
+                st.session_state.new_url = None
+                match = re.search(r'2\. \*\*New URL\*\*:.*?\n\s*```http\n\s*(.*?)\s*```', ai_interpretation, re.DOTALL)
+                if match:
+                    new_url = match.group(1).strip()
+                    print(f"New URL: {new_url}")
+                    st.session_state.new_url = new_url
+                    update_url()
         
         # Reset the flag
         st.session_state.interpret_url = False
-        #st.rerun()
+        st.rerun()
 
     # Display the conversation history in reverse order
     with conversation_container:
-        for message in st.session_state.messages:
+        for message in reversed(st.session_state.messages):
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
