@@ -21,7 +21,7 @@ def reset_state():
             del st.session_state[key]
 
 # Streamlit UI setup
-st.set_page_config(page_title="Intune Ninja", layout="wide") # This is how our app can be found through the Streamlit search engine
+st.set_page_config(page_title="Intune Ninja", layout="wide", page_icon=":ninja:") # This is how our app can be found through the Streamlit search engine
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
