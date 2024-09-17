@@ -14,6 +14,12 @@ def parse_secrets(secrets_text):
             secrets[key.strip()] = value.strip()
     return secrets
 
+def reset_state():
+    keys_to_keep = ['user_secrets', 'LLM_MODEL']
+    for key in list(st.session_state.keys()):
+        if key not in keys_to_keep:
+            del st.session_state[key]
+
 # Streamlit UI setup
 st.set_page_config(page_title="Intune Ninja", layout="wide") # This is how our app can be found through the Streamlit search engine
 
@@ -213,9 +219,12 @@ with col1:
     #     st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", on_change=update_system_prompt, disabled=True)
     
     if selected_example:
+        reset_state()
         user_input = selected_example
+        # st.rerun()
     
     if submit_button or (user_input and user_input != st.session_state.get("last_query", "")):
+        reset_state()
         st.session_state.last_query = user_input
         with st.spinner("Generating Graph API URL..."):
             graph_api_url = get_graph_api_url(client, user_input, system_prompt)
@@ -230,6 +239,8 @@ with col1:
                 st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
+    
+        # st.rerun()
 
     # Add back the Graph API URL form
     def update_url():
