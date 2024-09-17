@@ -97,7 +97,10 @@ def invoke_graph_api(url):
         write_debug(":negative_squared_cross_mark: Bad Request. Trying to get metadata instead.")
         #st.warning("Bad Request. Trying to get metadata instead.")
         st.session_state.bad_request = True
-        st.session_state.metadata = call_graph_api(st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
+        try:
+            st.session_state.metadata = call_graph_api(st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
+        except:
+            st.session_state.metadata = call_graph_api("https://graph.microsoft.com/" + st.session_state.graph_api_json["version"] + "/" + st.session_state.graph_api_json["endpoint"] + "?$top=1")
     return response
 
 st.title(":ninja: Intune Ninja", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
@@ -212,7 +215,7 @@ with col1:
         examples = ["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"]
         selected_example = st.selectbox(label="Examples", options=[""] + examples)
         
-        submit_button = st.form_submit_button(label='Get Graph API URL', help=f"Prompt: {system_prompt['content']}")
+        submit_button = st.form_submit_button(label='Generate Graph API URL', help=f"Prompt: {system_prompt['content']}")
 
     # with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
     #     def update_system_prompt():
@@ -307,9 +310,9 @@ with col1:
             )
             col_graph_submit_left, col_graph_submit_right = st.columns(2)
             with col_graph_submit_left:
-                update_url_button = st.form_submit_button(label="Update URL")
+                update_url_button = st.form_submit_button(label="Update Graph API URL")
             with col_graph_submit_right:
-                submit_api_call = st.form_submit_button(label="Call Graph API")
+                submit_api_call = st.form_submit_button(label="Try Graph API request")
 
         if update_url_button:
             update_url()
@@ -326,17 +329,17 @@ with col1:
     if st.session_state.get("graph_api_response"):
         st.subheader("Graph API Response")
         with st.form(key='graph_api_response_form'):
+            interpret_button = (
+                st.form_submit_button(label="Interpret Response")
+                if 'bad_request' not in st.session_state or st.session_state.bad_request == False
+                else st.form_submit_button(label="🛠️ :red[Fix it!]")
+            )
             st.text_area(
                 label="Graph API Response",
                 label_visibility="collapsed",
                 value=st.session_state.graph_api_response,
                 height=250,
                 key="graph_api_response_col1"
-            )
-            interpret_button = (
-                st.form_submit_button(label="Interpret Response")
-                if 'bad_request' not in st.session_state or st.session_state.bad_request == False
-                else st.form_submit_button(label="🛠️ :red[Fix it!]")
             )
         
         if interpret_button:
@@ -348,6 +351,7 @@ with col2:
     if st.button("Clear Everything"):
         st.cache_resource.clear()
         client.close()
+        st.session_state.thread_id = None
         # st.session_state.messages = []
         # st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
         # clear_debug_messages()  # Clear debug messages
@@ -363,9 +367,23 @@ with col2:
 
     with st.expander("Prompt", expanded=False):
         def update_assistant_prompt():
-            assistant_prompt['content'] = st.session_state.assitant_prompt
-            print(assistant_prompt['content'])
-        st.text_area(label="A set of instructions for the AI assistant", label_visibility="visible", height=500, key="assistant_prompt", value=f"{assistant_prompt['content']}", on_change=update_assistant_prompt)
+            st.session_state.assitant_prompt = st.session_state.assistant_prompt_input
+            print("Assistant prompt updated")
+            write_debug("Assistant prompt updated")
+
+        st.text_area(label="A set of instructions for the AI assistant", label_visibility="visible", height=500, key="assistant_prompt_input", value=f"{st.session_state.assistant_prompt}", on_change=update_assistant_prompt)
+
+    # New URL input section (initially hidden)
+    if st.session_state.get("new_url"):
+        st.warning("New URL detected in the assistant's response:", icon="ℹ️")
+        
+        new_url_input = st.markdown(f"```{st.session_state.new_url}```")
+            
+        if st.button("Update URL"):
+            update_url()
+            st.success("URL updated successfully!")
+            st.session_state.new_url = None  # Clear the new_url to hide the input
+            st.rerun()
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -382,25 +400,19 @@ with col2:
     # Handle interpretation of API result
     if st.session_state.get("interpret_url", False):
         with spinner_container:
-            with st.spinner("Interpreting Graph API Response..."):
+            with st.spinner(":ninja: Intune Ninja is interpreting the Graph API Response..."):
+                # Always get the latest values from the session state
                 graph_api_url = st.session_state.get("graph_api_url", "")
                 graph_api_response = st.session_state.get("graph_api_response", "")
+                user_input = st.session_state.get("last_query", "")
                 thread_id = get_or_create_thread_id()
                 
-                interpretation_prompt = f"""\
-                Interpret the following Graph API call:
-
-                This was my request:
-                {user_input}
-
-                This was the Graph API call you provided:
-                URL: {graph_api_url}
-                Response: {graph_api_response}"""
-
-                if st.session_state.bad_request == True:
-                    interpretation_prompt += f"""\
+                if 'bad_request' not in st.session_state or st.session_state.bad_request == False:
+                    st.session_state.interpretation_prompt = st.session_state.assistant_prompt
+                else:
+                    st.session_state.interpretation_prompt = f"""\
                         That didn't work. Here's the metadata for the endpoint:
-                        {st.session_state.metadata}
+                        {st.session_state.get('metadata', 'No metadata available')}
 
                         Is this the correct endpoint? Use your file_search tool to consult the documentation.
                         Based on the available object properties, provide the correct endpoint and parameters.
@@ -415,27 +427,25 @@ with col2:
                         ```
 
                         Ensure that the new URL is correct and complete.
-                    """
+                        """
                     st.session_state.bad_request = False
-                else:
-                    interpretation_prompt += f"""\
-                    Interpret the response and provide a clear and concise summary.
-                    """
-                
-                ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
+
+                ai_interpretation = chat_with_assistant(dedent(st.session_state.interpretation_prompt), [], thread_id)
                 
                 st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
                 
                 print("Parsing AI response for new URL...")
                 import re
 
-                st.session_state.new_url = None
-                match = re.search(r'2\. \*\*New URL\*\*:.*?\n\s*```http\n\s*(.*?)\s*```', ai_interpretation, re.DOTALL)
+                # Updated regex pattern to match both markdown and plain code blocks
+                match = re.search(r'(?:markdown)?\s*\n\s*(https://graph\.microsoft\.com/.*?)\s*\n\s*', ai_interpretation, re.DOTALL | re.IGNORECASE)
                 if match:
                     new_url = match.group(1).strip()
-                    print(f"New URL: {new_url}")
+                    print(f"New URL found: {new_url}")
                     st.session_state.new_url = new_url
-                    update_url()
+                else:
+                    print("No new URL found in the AI response.")
+                    st.session_state.new_url = None
         
         # Reset the flag
         st.session_state.interpret_url = False
@@ -462,6 +472,10 @@ with col2:
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         st.rerun()
+
+    # Add this new section after parsing the AI response
+    if "new_url" not in st.session_state:
+        st.session_state.new_url = None
 
 # Add auto-scrolling to the bottom of the conversation
 st.markdown("""

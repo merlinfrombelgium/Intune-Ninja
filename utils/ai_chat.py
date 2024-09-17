@@ -174,25 +174,25 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
         st.error(error_message)
         return error_message
 
-def interpret_graph_api_url(url, thread_id: str = None):
-    prompt = f"""\
-    Interpret and explain the following Graph API URL: {url}
+# def interpret_graph_api_url(url, thread_id: str = None):
+#     prompt = f"""\
+#     Interpret and explain the following Graph API URL: {url}
 
-    Provide a brief explanation of what this URL does and what kind of data it will retrieve.
-    If you think the URL could be improved or modified, suggest changes and explain why.
-    Format your response as follows:
+#     Provide a brief explanation of what this URL does and what kind of data it will retrieve.
+#     If you think the URL could be improved or modified, suggest changes and explain why.
+#     Format your response as follows:
 
-    Interpretation: [Your interpretation here]
-    Suggested Changes: [Your suggested changes here, or 'None' if no changes are needed]
-    Modified URL: [The modified URL if changes are suggested, or the original URL if no changes are needed]
-    """
+#     Interpretation: [Your interpretation here]
+#     Suggested Changes: [Your suggested changes here, or 'None' if no changes are needed]
+#     Modified URL: [The modified URL if changes are suggested, or the original URL if no changes are needed]
+#     """
 
-    response = chat_with_assistant(dedent(prompt), [], thread_id)
-    return {
-        "interpretation": response.split("Interpretation:")[1].split("Suggested Changes:")[0].strip(),
-        "suggested_changes": response.split("Suggested Changes:")[1].split("Modified URL:")[0].strip(),
-        "modified_url": response.split("Modified URL:")[1].strip()
-    }
+#     response = chat_with_assistant(dedent(prompt), [], thread_id)
+#     return {
+#         "interpretation": response.split("Interpretation:")[1].split("Suggested Changes:")[0].strip(),
+#         "suggested_changes": response.split("Suggested Changes:")[1].split("Modified URL:")[0].strip(),
+#         "modified_url": response.split("Modified URL:")[1].strip()
+#     }
 
 def check_client_status(client):
     try:
