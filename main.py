@@ -14,8 +14,14 @@ def parse_secrets(secrets_text):
             secrets[key.strip()] = value.strip()
     return secrets
 
+def reset_state():
+    keys_to_keep = ['user_secrets', 'LLM_MODEL']
+    for key in list(st.session_state.keys()):
+        if key not in keys_to_keep:
+            del st.session_state[key]
+
 # Streamlit UI setup
-st.set_page_config(page_title="Intune Ninja", layout="wide") # This is how our app can be found through the Streamlit search engine
+st.set_page_config(page_title="Intune Ninja", layout="wide", page_icon=":ninja:") # This is how our app can be found through the Streamlit search engine
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
@@ -68,7 +74,8 @@ if 'first_run' not in st.session_state:
 if st.session_state.first_run and not are_secrets_set():
     st.toast("Intune Ninja says hi!", icon="🥷")
     st.session_state.first_run = False
-
+    if 'bad_request' not in st.session_state:
+        st.session_state.bad_request = False
 # if not client:
 #     client = initialize_client()
 #     st.success("OpenAI client initialized successfully!")
@@ -213,9 +220,12 @@ with col1:
     #     st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", on_change=update_system_prompt, disabled=True)
     
     if selected_example:
+        #reset_state()
         user_input = selected_example
+        # st.rerun()
     
-    if submit_button or (user_input and user_input != st.session_state.get("last_query", "")):
+    if submit_button:
+        #reset_state()
         st.session_state.last_query = user_input
         with st.spinner("Generating Graph API URL..."):
             graph_api_url = get_graph_api_url(client, user_input, system_prompt)
@@ -225,11 +235,10 @@ with col1:
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url["url"]
             st.session_state.graph_api_json = graph_api_url["json"]
-            # Call Graph API immediately
-            with st.spinner("Calling Graph API..."):
-                st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
+    
+        # st.rerun()
 
     # Add back the Graph API URL form
     def update_url():
@@ -243,7 +252,7 @@ with col1:
         else:
             st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
     
-    if "graph_api_url" in st.session_state:
+    if "graph_api_url" and "graph_api_json" in st.session_state:
         with st.form(key='graph_api_form'):
             # st.text_input(
             #     label="Base URL",
@@ -320,25 +329,32 @@ with col1:
         
         if interpret_button:
             st.session_state.interpret_url = True
-            st.rerun()
+            #st.rerun()
 
 with col2:
     # Add a Clear button
     if st.button("Clear Everything"):
         st.cache_resource.clear()
+        reset_state()
         client.close()
         # st.session_state.messages = []
         # st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
         # clear_debug_messages()  # Clear debug messages
+        # st.session_state.user_input = ""
+        # st.session_state.bad_request = False
         # st.session_state.graph_api_response = ""
-        # st.session_state.graph_api_url = ""
-        # st.session_state.graph_api_json = ""
-        # st.session_state.graph_api_base_url = ""
-        # st.session_state.graph_api_choice = ""
-        # st.session_state.graph_api_endpoint = ""
-        # st.session_state.graph_api_parameters = ""
-        st.session_state.graph_api_complete_url = ""
-        st.rerun()
+        # del st.session_state["graph_api_url"]
+        # del st.session_state["graph_api_json"]
+        # # st.session_state.graph_api_base_url = ""
+        # # st.session_state.graph_api_choice = ""
+        # # st.session_state.graph_api_endpoint = ""
+        # # st.session_state.graph_api_parameters = ""
+        # del st.session_state["graph_api_complete_url"]
+        for key in st.session_state.keys():
+            if key not in ['user_secrets', 'LLM_MODEL']:
+                del st.session_state[key]
+        st.session_state.bad_request = False
+        #st.rerun()
 
     with st.expander("Prompt", expanded=False):
         def update_assistant_prompt():
@@ -390,7 +406,7 @@ with col2:
                     st.session_state.bad_request = False
                 else:
                     interpretation_prompt += f"""\
-                    Inerpret the response and provide a clear and concise summary.
+                    Interpret the response and provide a clear and concise summary.
                 """
                 
                 ai_interpretation = chat_with_assistant(dedent(interpretation_prompt), [], thread_id)
@@ -399,11 +415,11 @@ with col2:
         
         # Reset the flag
         st.session_state.interpret_url = False
-        st.rerun()
+        #st.rerun()
 
     # Display the conversation history in reverse order
     with conversation_container:
-        for message in reversed(st.session_state.messages):
+        for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
@@ -422,6 +438,14 @@ with col2:
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         st.rerun()
+
+# Add auto-scrolling to the bottom of the conversation
+st.markdown("""
+<script>
+    var chatContainer = window.parent.document.querySelector('.stChatFloatingInputContainer');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+</script>
+""", unsafe_allow_html=True)
 
 # At the end of the file, add this to ensure debug info is always displayed
 write_debug("")
