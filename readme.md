@@ -2,12 +2,12 @@
 
 ## Overview
 
-Intune Ninja is an AI-powered tool that provides insights on Intune data using Microsoft Graph API. It allows users to interact with the AI to retrieve information and perform actions related to Intune.
+Intune Ninja is an AI-powered tool that provides insights on Intune data using Microsoft Graph API. It leverages an OpenAI assistant to interpret user queries and generate an accurate URL to call the Microsoft Graph API.
 
 ## Features
 
-- Chat with AI to get insights on Intune data.
-- Call Microsoft Graph API to fetch data.
+- Prompt for any Intune or Entra ID related data to get the URL to call the Microsoft Graph API.
+- Chat with AI to get insights on Intune data or just learn more about the Microsoft Graph API.
 - Interpret the data and provide suggestions.
 - User-friendly interface built with Streamlit.
 
@@ -22,7 +22,9 @@ No need for installation thanks to our Streamlit app!
 
 ### Requirements
 
-- Python 3.x
+- OpenAI API key
+- Microsoft Graph API client ID, secret, and tenant ID
+- Python 3.11 or higher
 - Required packages:
   - `dotenv`
   - `openai`
