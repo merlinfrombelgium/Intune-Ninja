@@ -177,10 +177,10 @@ system_prompt_file = os.sep.join([os.curdir, "prompts", "system_prompt.md"])
 with open(system_prompt_file, 'r') as file:
     system_prompt = {"role": "system", "content": file.read().strip()}
 
-assistant_prompt_file = os.sep.join([os.curdir, "prompts", "assistant_instructions.md"])
-with open(assistant_prompt_file, 'r') as file:
-    assistant_prompt = {"role": "assistant", "content": file.read().strip()}
-    st.session_state.assistant_prompt = assistant_prompt["content"]
+if 'run_instructions' not in st.session_state:
+    assistant_prompt_file = os.sep.join([os.curdir, "prompts", "assistant_instructions.md"])
+    with open(assistant_prompt_file, 'r') as file:
+        st.session_state.run_instructions = file.read().strip()
 
 # Add this CSS to create a vertical separator
 st.markdown("""
@@ -212,10 +212,10 @@ with col1:
             placeholder="Enter your query here...",
             key="user_query"
         )
-        examples = ["List all Windows 11 devices", "Show me users sorted by name", "Generate a report on non-compliant devices"]
+        examples = ["Show me users sorted by name", "List all Windows 11 devices", "Generate a report on recent blue screen events"]
         selected_example = st.selectbox(label="Examples", options=[""] + examples)
         
-        submit_button = st.form_submit_button(label='Generate Graph API URL', help=f"Prompt: {system_prompt['content']}")
+        submit_button = st.form_submit_button(label=':blue[Generate Graph API URL]', help=f"Prompt: {system_prompt['content']}")
 
     # with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
     #     def update_system_prompt():
@@ -310,9 +310,9 @@ with col1:
             )
             col_graph_submit_left, col_graph_submit_right = st.columns(2)
             with col_graph_submit_left:
-                update_url_button = st.form_submit_button(label="Update Graph API URL")
+                update_url_button = st.form_submit_button(label="♻️ Update Graph API URL")
             with col_graph_submit_right:
-                submit_api_call = st.form_submit_button(label="Try Graph API request")
+                submit_api_call = st.form_submit_button(label="🤞 :green[Try Graph API request]")
 
         if update_url_button:
             update_url()
@@ -330,9 +330,9 @@ with col1:
         st.subheader("Graph API Response")
         with st.form(key='graph_api_response_form'):
             interpret_button = (
-                st.form_submit_button(label="Interpret Response")
+                st.form_submit_button(label="❔Interpret Response")
                 if 'bad_request' not in st.session_state or st.session_state.bad_request == False
-                else st.form_submit_button(label="🛠️ :red[Fix it!]")
+                else st.form_submit_button(label="🪄 :red[Fix it!]")
             )
             st.text_area(
                 label="Graph API Response",
@@ -366,12 +366,11 @@ with col2:
         st.rerun()
 
     with st.expander("Prompt", expanded=False):
-        def update_assistant_prompt():
-            st.session_state.assitant_prompt = st.session_state.assistant_prompt_input
-            print("Assistant prompt updated")
-            write_debug("Assistant prompt updated")
+        def update_run_instructions():
+            st.session_state.run_instructions = st.session_state.assistant_prompt_input
+            write_debug("Run instructions updated")
 
-        st.text_area(label="A set of instructions for the AI assistant", label_visibility="visible", height=500, key="assistant_prompt_input", value=f"{st.session_state.assistant_prompt}", on_change=update_assistant_prompt)
+        st.text_area(label="A set of instructions for the AI assistant", label_visibility="visible", height=500, key="assistant_prompt_input", value=f"{st.session_state.run_instructions}", on_change=update_run_instructions)
 
     # New URL input section (initially hidden)
     if st.session_state.get("new_url"):
@@ -404,14 +403,14 @@ with col2:
                 # Always get the latest values from the session state
                 graph_api_url = st.session_state.get("graph_api_url", "")
                 graph_api_response = st.session_state.get("graph_api_response", "")
-                user_input = st.session_state.get("last_query", "")
+                #user_input = st.session_state.get("last_query", "")
                 thread_id = get_or_create_thread_id()
                 
-                if 'bad_request' not in st.session_state or st.session_state.bad_request == False:
-                    st.session_state.interpretation_prompt = st.session_state.assistant_prompt
+                if st.session_state.bad_request == False:
+                    st.session_state.interpretation_prompt = st.session_state.run_instructions
                 else:
                     st.session_state.interpretation_prompt = f"""\
-                        That didn't work. Here's the metadata for the endpoint:
+                        That didn't work. Here's the metadata for the endpoint {st.session_state.graph_api_json["endpoint"]}:
                         {st.session_state.get('metadata', 'No metadata available')}
 
                         Is this the correct endpoint? Use your file_search tool to consult the documentation.
@@ -430,7 +429,7 @@ with col2:
                         """
                     st.session_state.bad_request = False
 
-                ai_interpretation = chat_with_assistant(dedent(st.session_state.interpretation_prompt), [], thread_id)
+                ai_interpretation = chat_with_assistant(f"My query was: \"{user_input}\" and the response from the Graph API was: {dedent(st.session_state.graph_api_response)}", st.session_state.interpretation_prompt, [], thread_id)
                 
                 st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
                 
@@ -438,7 +437,7 @@ with col2:
                 import re
 
                 # Updated regex pattern to match both markdown and plain code blocks
-                match = re.search(r'(?:markdown)?\s*\n\s*(https://graph\.microsoft\.com/.*?)\s*\n\s*', ai_interpretation, re.DOTALL | re.IGNORECASE)
+                match = re.search(r'(?:markdown)?\s*\n\s*(?:GET\s+)?(https://graph\.microsoft\.com/.*?)\s*\n\s*', ai_interpretation, re.DOTALL | re.IGNORECASE)
                 if match:
                     new_url = match.group(1).strip()
                     print(f"New URL found: {new_url}")

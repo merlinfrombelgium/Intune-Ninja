@@ -64,7 +64,7 @@ def chat_with_ai(message, history, system_prompt):
         st.error(f"Error in chat_with_ai: {str(e)}")
         return [(message, f"Error: {str(e)}")]
 
-def chat_with_assistant(message: str, history: list, thread_id: str = None):
+def chat_with_assistant(message: str, run_instructions: str, history: list, thread_id: str = None):
     # if not client:
     #     client = AI_client()
     
@@ -123,7 +123,8 @@ def chat_with_assistant(message: str, history: list, thread_id: str = None):
             assistant_id=st.session_state.IntuneCopilotAssistant.id,
             tools=[{"type": "file_search"}],
             # instructions="Please be concise and to the point. Stick to the context of Intune and Graph API. Politely decline to answer out of scope questions. It's okay to use humor."
-            instructions="""
+            instructions=run_instructions if run_instructions else 
+            """
             You are an AI assistant specialized in Microsoft Intune, Entra ID and Windows 10/11. Based on a user's natural language request, you are to provide guidance and advanced insights on the Graph request needed to provide an answer to the user's question. Use the knowledge base provided to you. (file_search)
 
             Instructions:
