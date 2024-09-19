@@ -17,6 +17,8 @@ No need for installation thanks to our Streamlit app!
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://intune-ninja.streamlit.app/)
 
+You do need to have an OpenAI account and a payment method linked to it. Grab an API key, as well as the client ID and secret of your Entra ID registered application for Graph.
+
 <details>
 <summary>Instructions for manual installation</summary>
 
