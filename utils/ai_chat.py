@@ -64,13 +64,29 @@ def chat_with_ai(message, history, system_prompt):
         st.error(f"Error in chat_with_ai: {str(e)}")
         return [(message, f"Error: {str(e)}")]
 
-def chat_with_assistant(message: str, run_instructions: str, history: list, thread_id: str = None):
-    # if not client:
-    #     client = AI_client()
+def chat_with_assistant(prompt, instructions, history, thread_id=None):
+    # Add safety check for history and instructions
+    if history is None:
+        history = []
+    
+    # Ensure instructions is a string
+    if instructions is None or not isinstance(instructions, str):
+        instructions = """
+            You are an AI assistant specialized in Microsoft Intune, Entra ID and Windows 10/11. Based on a user's natural language request, you are to provide guidance and advanced insights on the Graph request needed to provide an answer to the user's question. Use the knowledge base provided to you. (file_search)
+
+            Instructions:
+            - Only answer questions related to Microsoft Intune, Entra ID and Windows 10/11
+            - Consider to use the /beta version of Graph if it would yield better and more accurate results. (refer to your knowledge base)
+            - Always look at the available attributes of the objects in the Graph response and try to get better results and granularity by suggesting other filters.
+            - For error 400 (bad request), look at the error message and suggest a new Graph request.
+            - The answers **must** consist of at least three paragraphs that explain the user's request, a reference to the documents that relate to the topic the user is asking about, and further explanation for the answer. You may also provide further steps and guidance to explain the answer.
+            - If you're unsure of an answer, please say so.
+            - Please explain the answer you give and provide a link to the documentation if possible. Show also the time stamp of the documentation.
+            - Windows 11 is listed as osVersion "10.0.22000" or higher. The correct query to get Windows 11 devices is `deviceManagement/managedDevices?$filter=operatingSystem eq 'Windows' and startsWith(osVersion, '10.0.22')`.
+            """
     
     try:
-
-        logger.info(f"Starting chat_with_assistant. Message: {message[:50]}...")
+        logger.info(f"Starting chat_with_assistant. Message: {prompt[:50]}...")
 
         # Try to use the existing thread_id, create a new one if it doesn't exist
         try:
@@ -106,7 +122,7 @@ def chat_with_assistant(message: str, run_instructions: str, history: list, thre
         client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
-            content=message
+            content=prompt
         )
         logger.info("Added user message to thread")
 
@@ -122,21 +138,7 @@ def chat_with_assistant(message: str, run_instructions: str, history: list, thre
             thread_id=thread_id,
             assistant_id=st.session_state.IntuneCopilotAssistant.id,
             tools=[{"type": "file_search"}],
-            # instructions="Please be concise and to the point. Stick to the context of Intune and Graph API. Politely decline to answer out of scope questions. It's okay to use humor."
-            instructions=run_instructions if run_instructions else 
-            """
-            You are an AI assistant specialized in Microsoft Intune, Entra ID and Windows 10/11. Based on a user's natural language request, you are to provide guidance and advanced insights on the Graph request needed to provide an answer to the user's question. Use the knowledge base provided to you. (file_search)
-
-            Instructions:
-            - Only answer questions related to Microsoft Intune, Entra ID and Windows 10/11
-            - Consider to use the /beta version of Graph if it would yield better and more accurate results. (refer to your knowledge base)
-            - Always look at the available attributes of the objects in the Graph response and try to get better results and granularity by suggesting other filters.
-            - For error 400 (bad request), look at the error message and suggest a new Graph request.
-            - The answers **must** consist of at least three paragraphs that explain the user's request, a reference to the documents that relate to the topic the user is asking about, and further explanation for the answer. You may also provide further steps and guidance to explain the answer.
-            - If you're unsure of an answer, please say so.
-            - Please explain the answer you give and provide a link to the documentation if possible. Show also the time stamp of the documentation.
-            - Windows 11 is listed as osVersion "10.0.22000" or higher. The correct query to get Windows 11 devices is `deviceManagement/managedDevices?$filter=operatingSystem eq 'Windows' and startsWith(osVersion, '10.0.22')`.
-            """
+            instructions=instructions  # Now this will always be a string
         )
         logger.info(f"Created run. ID: {run.id}")
 

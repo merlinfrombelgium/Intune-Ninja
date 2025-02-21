@@ -143,7 +143,7 @@ with st.sidebar:
         
         # OpenAI Model selection
         new_model = st.selectbox(label="OpenAI Model", 
-                                 options=["gpt-4o-2024-08-06", "gpt-4o-mini"], 
+                                 options=["gpt-4o-2024-08-06", "gpt-4o-mini", "o3-mini"], 
                                  index=0 if st.session_state.LLM_MODEL == "gpt-4o-2024-08-06" else 1)
         if new_model != st.session_state.LLM_MODEL:
             st.session_state.LLM_MODEL = new_model
@@ -400,36 +400,13 @@ with col2:
     if st.session_state.get("interpret_url", False):
         with spinner_container:
             with st.spinner(":ninja: Intune Ninja is interpreting the Graph API Response..."):
-                # Always get the latest values from the session state
-                graph_api_url = st.session_state.get("graph_api_url", "")
-                graph_api_response = st.session_state.get("graph_api_response", "")
-                #user_input = st.session_state.get("last_query", "")
                 thread_id = get_or_create_thread_id()
-                
-                if st.session_state.bad_request == False:
-                    st.session_state.interpretation_prompt = st.session_state.run_instructions
-                else:
-                    st.session_state.interpretation_prompt = f"""\
-                        That didn't work. Here's the metadata for the endpoint {st.session_state.graph_api_json["endpoint"]}:
-                        {st.session_state.get('metadata', 'No metadata available')}
-
-                        Is this the correct endpoint? Use your file_search tool to consult the documentation.
-                        Based on the available object properties, provide the correct endpoint and parameters.
-
-                        Please provide your response in the following format:
-                        1. Explanation: [Explain what was wrong with the original URL and why the new one is correct]
-                        2. New URL: [Provide the corrected URL as a code block in markdown format]
-
-                        Example format for the New URL:
-                        ```
-                        https://graph.microsoft.com/v1.0/endpoint?param1=value1&param2=value2
-                        ```
-
-                        Ensure that the new URL is correct and complete.
-                        """
-                    st.session_state.bad_request = False
-
-                ai_interpretation = chat_with_assistant(f"My query was: \"{user_input}\" and the response from the Graph API was: {dedent(st.session_state.graph_api_response)}", st.session_state.interpretation_prompt, [], thread_id)
+                ai_interpretation = chat_with_assistant(
+                    f"My query was: \"{user_input}\" and the response from the Graph API was: {dedent(st.session_state.graph_api_response)}", 
+                    st.session_state.interpretation_prompt, 
+                    st.session_state.messages,
+                    thread_id
+                )
                 
                 st.session_state.messages.append({"role": "assistant", "content": ai_interpretation})
                 
