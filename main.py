@@ -2,12 +2,29 @@ import os
 import streamlit as st
 from utils.write_debug import write_debug, clear_debug_messages
 from textwrap import dedent
-from utils.graph_api import call_graph_api, get_access_token
-from utils.ai_chat import initialize_client, chat_with_assistant, check_client_status, update_client_status, get_graph_api_url
+from utils.graph_api import call_graph_api, get_access_token, test_graph_authentication
+from utils.ai_chat import initialize_client, chat_with_assistant, check_client_status, update_client_status
 import json
 from urllib.parse import urlparse, parse_qs
 import requests
 import toml
+from utils.graph_url_generator import generate_graph_api_url, format_graph_api_url
+
+# At the beginning of the file, after other function definitions
+def check_graph_auth():
+    try:
+        # Use a simple Graph API call to check authentication
+        url = "https://graph.microsoft.com/v1.0/me"
+        token = get_access_token()
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        response = requests.get(url, headers=headers)
+        return response.status_code == 200
+    except Exception as e:
+        write_debug(f"Error in check_graph_auth: {str(e)}")
+        return False
 
 # Add this new function to parse the pasted secrets
 def parse_secrets(secrets_text):
@@ -41,9 +58,28 @@ def reset_state():
     # Clear debug messages
     clear_debug_messages()
 
+def get_graph_api_url(query, system_prompt):
+    try:
+        url_data = generate_graph_api_url(query)
+        if url_data:
+            formatted_url = format_graph_api_url(url_data)
+            write_debug(f"Generated URL (beta version): {formatted_url}")
+            
+            json_representation = {
+                "base_url": url_data.base_url,
+                "version": "beta",  # Ensure we're always using beta
+                "endpoint": url_data.endpoint,
+                "parameters": url_data.parameters or []
+            }
+            
+            return {"url": formatted_url, "json": json_representation}
+    except Exception as e:
+        write_debug(f"Error in get_graph_api_url: {str(e)}")
+    return None
+
 # Streamlit UI setup
 st.set_page_config(
-    page_title="Intune Ninja",
+    page_title=":ninja: Intune Ninja",
     layout="wide",
     page_icon=":ninja:",
     initial_sidebar_state="collapsed"
@@ -55,21 +91,32 @@ if 'secrets_saved' not in st.session_state:
 
 # Function to load or initialize secrets
 def load_or_init_secrets():
+    # Comment out or remove some write_debug calls, for example:
+    # write_debug("Starting load_or_init_secrets function")
     if 'user_secrets' not in st.session_state:
+        # write_debug("Initializing user_secrets in session state")
         st.session_state.user_secrets = {
             'OpenAI API key': st.secrets.get("OpenAI_API_key", ""),
             'Graph proxy TENANT ID': st.secrets.get("Graph_proxy_TENANT_ID", ""),
             'Graph proxy CLIENT ID': st.secrets.get("Graph_proxy_CLIENT_ID", ""),
             'Graph proxy CLIENT SECRET': st.secrets.get("Graph_proxy_CLIENT_SECRET", ""),
         }
+    else:
+        # write_debug("user_secrets already in session state")
+        pass
 
     # Initialize LLM_MODEL
     if 'LLM_MODEL' not in st.session_state:
         st.session_state.LLM_MODEL = st.secrets.get("LLM_MODEL", "o3-mini")
+        write_debug(f"Initialized LLM_MODEL: {st.session_state.LLM_MODEL}")
 
     # Initialize client status
     if 'client_status' not in st.session_state:
         st.session_state.client_status = "unknown"
+        write_debug("Initialized client_status to unknown")
+
+    # Log the keys in user_secrets
+    # write_debug(f"Keys in user_secrets: {list(st.session_state.user_secrets.keys())}")
 
     # Initialize query_input
     if 'query_input' not in st.session_state:
@@ -114,10 +161,9 @@ def load_or_init_secrets():
     if 'new_url' not in st.session_state:
         st.session_state.new_url = None
 
-def clear_secrets_input():
-    st.session_state.secrets_input = ""
-    
-# Load or initialize secrets
+    # write_debug("Finished load_or_init_secrets function")
+
+# Ensure this function is called at the start of the application
 load_or_init_secrets()
 update_client_status()
 
@@ -183,7 +229,7 @@ def invoke_graph_api(url):
 
 # Main layout
 if not are_secrets_set():
-    st.title("Intune Ninja")
+    st.title("🥷 Intune Ninja")
     st.markdown("""
     Intune Ninja is an AI-powered tool that helps you craft Microsoft Graph API calls for Intune and interpret the results.
     It leverages OpenAI's language models to understand your queries and generate accurate API requests.
@@ -266,92 +312,101 @@ if not are_secrets_set():
         if st.session_state.get('show_test_graph', False):
             if st.button("Test Graph Authentication"):
                 with st.spinner("Testing Graph authentication..."):
-                    success, message = check_graph_auth()
+                    success, message = test_graph_authentication()
                     if success:
                         st.success(message)
                     else:
                         st.error(message)
 
 elif are_secrets_set():
-    st.title("Intune Ninja", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
+    st.title("🥷 Intune Ninja", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
 
-    # Create two columns for the layout
-    left_column, right_column = st.columns([1, 3])
+    # Move configuration to sidebar
+    with st.sidebar:
+        st.subheader("Configuration")
+        
+        # Display masked secrets
+        for key, value in st.session_state.user_secrets.items():
+            st.text_input(
+                label=key,
+                value=mask_string(value, key),
+                type="password",
+                disabled=True
+            )
+        
+        if st.button("Edit Secrets"):
+            st.session_state.secrets_saved = False
+            st.rerun()
+
+        # OpenAI Model selection
+        AVAILABLE_MODELS = ["o3-mini", "gpt-4o-2024-08-06", "gpt-4o-mini"]
+        current_model = st.session_state.LLM_MODEL
+        if current_model not in AVAILABLE_MODELS:
+            st.warning(f"The currently saved model '{current_model}' is not in the list of available models. Defaulting to 'o3-mini'.")
+            current_model = "o3-mini"
+        
+        new_model = st.selectbox(
+            label="OpenAI Model", 
+            options=AVAILABLE_MODELS,
+            index=AVAILABLE_MODELS.index(current_model)
+        )
+        if new_model != st.session_state.LLM_MODEL:
+            with st.spinner("Updating model selection..."):
+                try:
+                    st.session_state.LLM_MODEL = new_model
+                    # Update the secrets file with the new model
+                    save_secrets_to_file({**st.secrets, "LLM_MODEL": new_model})
+                    update_client_and_status()
+                    st.success("Model selection updated successfully!")
+                except Exception as e:
+                    st.error(f"An error occurred while updating the model: {str(e)}")
+                    write_debug(f"Error updating model: {str(e)}")
+
+        # Add reasoning effort selection only for o3 models
+        if st.session_state.LLM_MODEL.startswith("o3"):
+            REASONING_EFFORTS = ["low", "medium", "high"]
+            current_effort = st.session_state.get('REASONING_EFFORT', 'medium')
+            reasoning_effort_tooltip = "Reasoning effort controls the depth and complexity of the model's reasoning. Higher values may result in more thorough but slower responses. [Learn more](https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort)"
+            new_effort = st.selectbox(
+                label="Reasoning Effort for Interpretation", 
+                options=REASONING_EFFORTS,
+                index=REASONING_EFFORTS.index(current_effort),
+                help=reasoning_effort_tooltip
+            )
+            if new_effort != current_effort:
+                st.session_state.REASONING_EFFORT = new_effort
+                st.success("Reasoning effort updated successfully!")
+        else:
+            # Remove REASONING_EFFORT from session state if not using o3 model
+            st.session_state.pop('REASONING_EFFORT', None)
+
+        # Add Graph API authentication test button
+        if st.button("Test Graph API Authentication"):
+            with st.spinner("Testing Graph API authentication..."):
+                success, message = test_graph_authentication()
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+
+        # OpenAI Client Status
+        st.subheader("OpenAI Client Status")
+        client = get_openai_client()
+        if client:
+            st.success("OpenAI Client: :white_check_mark: Ready")
+        else:
+            st.error("OpenAI Client: :x: Error")
+            st.error("There was an error initializing the OpenAI client. Please check your configuration and try again.")
+
+        if st.button("Refresh Client Status"):
+            with st.spinner("Refreshing client status..."):
+                update_client_status()
+
+    # Main content area
+    left_column, right_column = st.columns([1, 2])
 
     with left_column:
-        # Collapsible configuration section
-        with st.expander("Configuration", expanded=False):
-            st.subheader("API Keys and Secrets")
-            
-            # Display masked secrets
-            for key, value in st.session_state.user_secrets.items():
-                st.text_input(
-                    label=key,
-                    value=mask_string(value, key),
-                    type="password",
-                    disabled=True
-                )
-            
-            if st.button("Edit Secrets"):
-                st.session_state.secrets_saved = False
-                st.rerun()
-
-            # OpenAI Model selection
-            AVAILABLE_MODELS = ["o3-mini", "gpt-4o-2024-08-06", "gpt-4o-mini"]
-            current_model = st.session_state.LLM_MODEL
-            if current_model not in AVAILABLE_MODELS:
-                st.warning(f"The currently saved model '{current_model}' is not in the list of available models. Defaulting to 'o3-mini'.")
-                current_model = "o3-mini"
-            
-            new_model = st.selectbox(
-                label="OpenAI Model", 
-                options=AVAILABLE_MODELS,
-                index=AVAILABLE_MODELS.index(current_model)
-            )
-            if new_model != st.session_state.LLM_MODEL:
-                with st.spinner("Updating model selection..."):
-                    try:
-                        st.session_state.LLM_MODEL = new_model
-                        # Update the secrets file with the new model
-                        save_secrets_to_file({**st.secrets, "LLM_MODEL": new_model})
-                        update_client_and_status()
-                        st.success("Model selection updated successfully!")
-                    except Exception as e:
-                        st.error(f"An error occurred while updating the model: {str(e)}")
-                        write_debug(f"Error updating model: {str(e)}")
-
-            # Add reasoning effort selection only for o3 models
-            if st.session_state.LLM_MODEL.startswith("o3"):
-                REASONING_EFFORTS = ["low", "medium", "high"]
-                current_effort = st.session_state.get('REASONING_EFFORT', 'medium')
-                reasoning_effort_tooltip = "Reasoning effort controls the depth and complexity of the model's reasoning. Higher values may result in more thorough but slower responses. [Learn more](https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort)"
-                new_effort = st.selectbox(
-                    label="Reasoning Effort for Interpretation", 
-                    options=REASONING_EFFORTS,
-                    index=REASONING_EFFORTS.index(current_effort),
-                    help=reasoning_effort_tooltip
-                )
-                if new_effort != current_effort:
-                    st.session_state.REASONING_EFFORT = new_effort
-                    st.success("Reasoning effort updated successfully!")
-            else:
-                # Remove REASONING_EFFORT from session state if not using o3 model
-                st.session_state.pop('REASONING_EFFORT', None)
-
-            # OpenAI Client Status
-            st.subheader("OpenAI Client Status")
-            client = get_openai_client()
-            if client:
-                st.success("OpenAI Client: :white_check_mark: Ready")
-            else:
-                st.error("OpenAI Client: :x: Error")
-                st.error("There was an error initializing the OpenAI client. Please check your configuration and try again.")
-
-            if st.button("Refresh Client Status"):
-                with st.spinner("Refreshing client status..."):
-                    update_client_status()
-
-    with right_column:
+        st.subheader("Query Input")
         # Create the examples dropdown
         examples = st.selectbox(
             "Examples",
@@ -374,50 +429,107 @@ elif are_secrets_set():
         # Suggest Graph API URL button
         suggest_button = st.button('Suggest Graph API URL')
 
+        # Move Graph API Request section here when interpretation is shown
+        if 'show_interpretation' in st.session_state and st.session_state.show_interpretation:
+            st.subheader("Graph API Request")
+            if "graph_api_url" in st.session_state:
+                with st.form(key='graph_api_form'):
+                    original_values = {
+                        'url': st.session_state.graph_api_url,
+                        'version': st.session_state.graph_api_json.get("version", "beta"),
+                        'endpoint': st.session_state.graph_api_json.get("endpoint", ""),
+                        'parameters': "\n&".join(st.session_state.graph_api_json.get("parameters", []))
+                    }
+
+                    st.text_input(
+                        label="Complete URL",
+                        value=original_values['url'],
+                        key="graph_api_complete_url",
+                        disabled=False,
+                    )
+                    col_graph_left, col_graph_right = st.columns([0.2, 0.8])
+                    with col_graph_left:
+                        API_version = st.radio(
+                            label="API version",
+                            options=["v1.0", "beta"],
+                            index=0 if original_values['version'] == "v1.0" else 1,
+                            horizontal=True,
+                            key="graph_api_choice",
+                        )
+                    with col_graph_right:
+                        st.text_input(
+                            label="endpoint",
+                            value=original_values['endpoint'],
+                            key="graph_api_endpoint",
+                        )
+                    st.text_area(
+                        label="parameters",
+                        value=original_values['parameters'],
+                        key="graph_api_parameters",
+                    )
+                    
+                    # Check if any values have changed
+                    values_changed = (
+                        st.session_state.graph_api_complete_url != original_values['url'] or
+                        st.session_state.graph_api_choice != original_values['version'] or
+                        st.session_state.graph_api_endpoint != original_values['endpoint'] or
+                        st.session_state.graph_api_parameters != original_values['parameters']
+                    )
+
+                    col_graph_submit_left, col_graph_submit_right = st.columns(2)
+                    with col_graph_submit_left:
+                        submit_api_call = st.form_submit_button(label="🤞 :green[Try Graph API request]")
+                    with col_graph_submit_right:
+                        update_url_button = st.form_submit_button(label="♻️ Update Graph API URL", disabled=not values_changed)
+
+                if update_url_button:
+                    update_url()
+                    st.rerun()
+
+                if submit_api_call:
+                    with st.spinner("Calling Graph API..."):
+                        st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
+                        st.rerun()
+
+        # Display the Graph API response
+        if st.session_state.get("graph_api_response"):
+            st.subheader("Graph API Response")
+            st.text_area(
+                label="Graph API Response",
+                value=st.session_state.graph_api_response,
+                height=250,
+                key="graph_api_response_left_column"
+            )
+
+with right_column:
+    if 'show_interpretation' not in st.session_state or not st.session_state.show_interpretation:
+        st.subheader("Graph API Request")
         if suggest_button:
             if not st.session_state.secrets_saved:
                 st.warning("Please save your secrets in the configuration section before using this feature.")
             else:
                 current_query = st.session_state.query_input
-                
                 with st.spinner("Suggesting Graph API URL..."):
                     graph_api_url = get_graph_api_url(current_query, st.session_state.system_prompt)
                     if graph_api_url:
-                        write_debug(f"Graph API URL: {graph_api_url['url']}")
-                        write_debug(f"Graph API JSON: {graph_api_url['json']}")
                         st.session_state.graph_api_url = graph_api_url["url"]
                         st.session_state.graph_api_json = graph_api_url["json"]
                     else:
-                        st.error("Failed to generate Graph API URL. Please check the debug messages for more information.")
+                        st.error("Failed to generate Graph API URL. Please try again.")
 
         # Add back the Graph API URL form
-        def update_url():
-            if "new_url" in st.session_state:
-                st.session_state.graph_api_url = st.session_state.new_url
-                st.balloons()
-                del st.session_state["new_url"]
-            elif st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
-                st.session_state.graph_api_url = st.session_state.graph_api_complete_url
-                st.session_state.graph_api_json = {
-                    "version": st.session_state.graph_api_choice,
-                    "endpoint": "",
-                    "parameters": []
-                }
-            else:
-                try:
-                    st.session_state.graph_api_url = st.session_state.graph_api_json["base_url"] + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
-                except:
-                    try:
-                        st.session_state.graph_api_url = "https://graph.microsoft.com/" + st.session_state.graph_api_choice + "/" + st.session_state.graph_api_endpoint + ("?" + st.session_state.graph_api_parameters if st.session_state.graph_api_parameters else "")
-                    except Exception as e:
-                        st.error(f"Error updating URL: {e}")
-                        st.stop()
-
         if "graph_api_url" in st.session_state:
             with st.form(key='graph_api_form'):
+                original_values = {
+                    'url': st.session_state.graph_api_url,
+                    'version': st.session_state.graph_api_json.get("version", "beta"),
+                    'endpoint': st.session_state.graph_api_json.get("endpoint", ""),
+                    'parameters': "\n&".join(st.session_state.graph_api_json.get("parameters", []))
+                }
+
                 st.text_input(
                     label="Complete URL",
-                    value=st.session_state.graph_api_url,
+                    value=original_values['url'],
                     key="graph_api_complete_url",
                     disabled=False,
                 )
@@ -426,26 +538,35 @@ elif are_secrets_set():
                     API_version = st.radio(
                         label="API version",
                         options=["v1.0", "beta"],
-                        index=0 if isinstance(st.session_state.graph_api_json, dict) and st.session_state.graph_api_json.get("version") == "v1.0" else 1,
+                        index=0 if original_values['version'] == "v1.0" else 1,
                         horizontal=True,
                         key="graph_api_choice",
                     )
                 with col_graph_right:
                     st.text_input(
                         label="endpoint",
-                        value=st.session_state.graph_api_json.get("endpoint", "") if isinstance(st.session_state.graph_api_json, dict) else "",
+                        value=original_values['endpoint'],
                         key="graph_api_endpoint",
                     )
                 st.text_area(
                     label="parameters",
-                    value="\n&".join(st.session_state.graph_api_json.get("parameters", [])) if isinstance(st.session_state.graph_api_json, dict) else "",
+                    value=original_values['parameters'],
                     key="graph_api_parameters",
                 )
+                
+                # Check if any values have changed
+                values_changed = (
+                    st.session_state.graph_api_complete_url != original_values['url'] or
+                    st.session_state.graph_api_choice != original_values['version'] or
+                    st.session_state.graph_api_endpoint != original_values['endpoint'] or
+                    st.session_state.graph_api_parameters != original_values['parameters']
+                )
+
                 col_graph_submit_left, col_graph_submit_right = st.columns(2)
                 with col_graph_submit_left:
-                    update_url_button = st.form_submit_button(label="♻️ Update Graph API URL")
-                with col_graph_submit_right:
                     submit_api_call = st.form_submit_button(label="🤞 :green[Try Graph API request]")
+                with col_graph_submit_right:
+                    update_url_button = st.form_submit_button(label="♻️ Update Graph API URL", disabled=not values_changed)
 
             if update_url_button:
                 update_url()
@@ -453,92 +574,67 @@ elif are_secrets_set():
 
             if submit_api_call:
                 with st.spinner("Calling Graph API..."):
-                    # Update the session state with the potentially modified URL
-                    # st.session_state.graph_api_url = updated_url
                     st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
                     st.rerun()
 
-        # Display the Graph API response in a scrollable window and add an interpret button
+        # Display the Graph API response
         if st.session_state.get("graph_api_response"):
             st.subheader("Graph API Response")
             with st.form(key='graph_api_response_form'):
-                interpret_button = (
-                    st.form_submit_button(label="❔Interpret Response")
-                    if 'bad_request' not in st.session_state or st.session_state.bad_request == False
-                    else st.form_submit_button(label="🪄 :red[Fix it!]")
+                interpret_button = st.form_submit_button(
+                    label="❔Interpret Response" if not st.session_state.get('bad_request', False) else "🪄 Fix it!"
                 )
                 st.text_area(
                     label="Graph API Response",
-                    label_visibility="collapsed",
                     value=st.session_state.graph_api_response,
                     height=250,
-                    key="graph_api_response_col1"
+                    key="graph_api_response_right_column"
                 )
             
             if interpret_button:
-                st.session_state.interpret_url = True
+                st.session_state.show_interpretation = True
                 st.rerun()
 
-else:
-    st.error("An unexpected error occurred. Please refresh the page and try again.")
-    write_debug("Unexpected state: secrets not set but not in initial configuration mode")
-
-# Add auto-scrolling to the bottom of the conversation
-st.markdown("""
-<script>
-    var chatContainer = window.parent.document.querySelector('.stChatFloatingInputContainer');
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-</script>
-""", unsafe_allow_html=True)
+    if 'show_interpretation' in st.session_state and st.session_state.show_interpretation:
+        st.subheader("Interpretation")
+        with st.spinner("Interpreting response..."):
+            interpretation = chat_with_assistant(
+                f"Interpret this Graph API response: {st.session_state.graph_api_response}",
+                st.session_state.interpretation_prompt,
+                st.session_state.messages
+            )
+            st.write(interpretation)
 
 # At the end of the file, add this to ensure debug info is always displayed
-write_debug("")
-update_client_status()
+# write_debug("")
 
-# Script to detect clicks on query input
-st.markdown("""
-<script>
-document.querySelector('input[aria-label="Query"]').addEventListener('click', function() {
-    window.parent.postMessage({
-        type: 'query_input_clicked',
-        value: true
-    }, '*');
-});
-</script>
-""", unsafe_allow_html=True)
+# At the end of the file
+if __name__ == "__main__":
+    # Move any necessary initialization code here
+    load_or_init_secrets()
+    update_client_status()
+    
+    # Ensure there's always a last element in the Streamlit app
+    st.empty()
 
-# Add this script to apply the glowing effect
-st.markdown("""
-<script>
-    function applyGlowingEffect() {
-        const inputs = window.parent.document.querySelectorAll('input[type="password"]');
-        inputs.forEach(input => {
-            if (!input.value) {
-                input.closest('div[data-baseweb="input"]').style.setProperty('--input-bg', '#ffddff');
-                input.closest('div[data-baseweb="input"]').classList.add('glowing-input');
-            } else {
-                input.closest('div[data-baseweb="input"]').style.removeProperty('--input-bg');
-                input.closest('div[data-baseweb="input"]').classList.remove('glowing-input');
-            }
-        });
-    }
-    applyGlowingEffect();
-</script>
-""", unsafe_allow_html=True)
-
-def check_graph_auth():
+def update_url():
     try:
-        # Use a simple Graph API call to check authentication
-        url = "https://graph.microsoft.com/v1.0/me"
-        token = get_access_token()
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return True, "Graph authentication successful"
+        if "new_url" in st.session_state:
+            st.session_state.graph_api_url = st.session_state.new_url
+            del st.session_state["new_url"]
+        elif st.session_state.graph_api_complete_url != st.session_state.graph_api_url:
+            st.session_state.graph_api_url = st.session_state.graph_api_complete_url
+            st.session_state.graph_api_json = {
+                "version": st.session_state.graph_api_choice,
+                "endpoint": st.session_state.graph_api_endpoint,
+                "parameters": st.session_state.graph_api_parameters.split('\n')
+            }
         else:
-            return False, f"Graph authentication failed: {response.status_code} - {response.text}"
+            base_url = "https://graph.microsoft.com/"
+            parameters = st.session_state.graph_api_parameters.replace('\n', '&').strip('&')
+            st.session_state.graph_api_url = f"{base_url}{st.session_state.graph_api_choice}/{st.session_state.graph_api_endpoint}{'?' + parameters if parameters else ''}"
+        
+        write_debug(f"Updated Graph API URL: {st.session_state.graph_api_url}")
     except Exception as e:
-        return False, f"Error checking Graph authentication: {str(e)}"
+        st.error(f"Error updating URL: {e}")
+        write_debug(f"Error in update_url: {str(e)}")

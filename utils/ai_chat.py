@@ -19,12 +19,20 @@ logger = logging.getLogger(__name__)
 def get_user_secret(key):
     if key == 'LLM_MODEL':
         model = st.session_state.LLM_MODEL
-        print(f"get_user_secret returning LLM_MODEL: {model}")  # Add this line
+        print(f"get_user_secret returning LLM_MODEL: {model}")
         return model
     if 'user_secrets' not in st.session_state:
         st.error("User secrets not initialized. Please refresh the page.")
+        write_debug(f"User secrets not found in session state. Available keys: {st.session_state.keys()}")
         return None
-    return st.session_state.user_secrets.get(key)
+    
+    # Handle 'Graph proxy' prefix
+    if key.startswith('Graph_proxy_'):
+        key = 'Graph proxy ' + key[12:]
+    
+    value = st.session_state.user_secrets.get(key)
+    write_debug(f"get_user_secret for {key}: {'Found' if value else 'Not found'}")
+    return value
 
 def initialize_client():
     api_key = get_user_secret('OpenAI API key')
@@ -171,13 +179,14 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new
                 raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
             logger.info(f"Retrieved assistant. ID: {st.session_state.IntuneCopilotAssistant.id}")
 
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=st.session_state.IntuneCopilotAssistant.id,
-            tools=[{"type": "file_search"}],
-            instructions=instructions,
-            reasoning_effort=st.session_state.get('REASONING_EFFORT', 'medium')  # Use the configured reasoning effort
-        )
+        run_params = {
+            "thread_id": thread_id,
+            "assistant_id": st.session_state.IntuneCopilotAssistant.id,
+            "tools": [{"type": "file_search"}],
+            "instructions": instructions,
+        }
+
+        run = client.beta.threads.runs.create(**run_params)
         logger.info(f"Created run. ID: {run.id}")
 
         while run.status != "completed":
@@ -248,67 +257,4 @@ def update_client_status():
     client = get_openai_client()
     status = check_client_status(client)
     st.session_state.client_status = status
-
-def get_graph_api_url(query, system_prompt):
-    client = get_openai_client()
-    if not client:
-        write_debug("OpenAI client is not initialized.")
-        return None
-
-    # Ensure system_prompt is a string
-    if not isinstance(system_prompt, str):
-        write_debug("Invalid system_prompt format. Expected a string.")
-        return None
-
-    messages = [
-        {"role": "developer", "content": system_prompt},
-        {"role": "user", "content": f"Generate a Microsoft Graph API URL for the following query: {query}"}
-    ]
-    
-    try:
-        write_debug(f"Model being used: {st.session_state.LLM_MODEL}")
-        write_debug(f"Messages being sent to API: {messages}")
-
-        # Common parameters for both o3 and 4o models
-        common_params = {
-            "model": st.session_state.LLM_MODEL,
-            "messages": messages,
-        }
-
-        # Add model-specific parameters
-        if st.session_state.LLM_MODEL.startswith("o3"):
-            common_params.update({
-                "reasoning_effort": st.session_state.get('REASONING_EFFORT', 'medium')
-            })
-        else:  # 4o models
-            common_params.update({
-                "temperature": 0.7,
-                "top_p": 1.0,
-                "frequency_penalty": 0.0,
-                "presence_penalty": 0.0
-            })
-
-        response = client.chat.completions.create(**common_params)
-        
-        write_debug(f"Raw API response: {response}")
-
-        # Extract the generated URL from the response
-        generated_url = response.choices[0].message.content.strip()
-        
-        # Parse the generated URL
-        parsed_url = urlparse(generated_url)
-        query_params = parse_qs(parsed_url.query)
-        
-        # Construct the JSON representation
-        json_representation = {
-            "base_url": f"{parsed_url.scheme}://{parsed_url.netloc}",
-            "version": parsed_url.path.split('/')[1],
-            "endpoint": '/'.join(parsed_url.path.split('/')[2:]),
-            "parameters": [f"{k}={v[0]}" for k, v in query_params.items()]
-        }
-        
-        return {"url": generated_url, "json": json_representation}
-    except Exception as e:
-        write_debug(f"Error in get_graph_api_url: {str(e)}")
-        return None
 

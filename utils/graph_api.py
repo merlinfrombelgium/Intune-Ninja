@@ -9,24 +9,24 @@ global client
 
 class MSGraphAPI:
     def __init__(self):
-        write_debug(":clock1: Calling MS Graph API...")
-        self.client_id = get_user_secret('MS_GRAPH_CLIENT_ID')
-        self.client_secret = get_user_secret('MS_GRAPH_CLIENT_SECRET')
-        self.tenant_id = get_user_secret('MS_GRAPH_TENANT_ID')
+        write_debug(":clock1: Initializing MS Graph API...")
+        self.client_id = get_user_secret('Graph proxy CLIENT ID')
+        self.client_secret = get_user_secret('Graph proxy CLIENT SECRET')
+        self.tenant_id = get_user_secret('Graph proxy TENANT ID')
         
         if not all([self.client_id, self.client_secret, self.tenant_id]):
             st.error(":warning: One or more required secrets are missing. Please check your configuration.")
+            self.token = None
             return
 
         self.base_url = "https://graph.microsoft.com/"
-        self.version = any(version for version in ['v1.0', 'beta'])
-        if 'graph_token' not in st.session_state:
-            write_debug(":clock130: Attempting to get access token...")
+        self.version = "beta"  # Default to beta version
+        try:
             self.token = self.get_access_token()
-            st.session_state.graph_token = self.token
-        else:
-            write_debug(":clock130: Using existing access token...")
-            self.token = st.session_state.graph_token
+            write_debug(":white_check_mark: Successfully initialized MS Graph API with access token")
+        except Exception as e:
+            st.error(f":warning: Failed to initialize MS Graph API: {str(e)}")
+            self.token = None
 
     def get_access_token(self):
         url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
@@ -59,7 +59,10 @@ class MSGraphAPI:
             raise ValueError(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
 
     def call_api(self, request, method='GET', data=None):
-        url = f"{request}" if request.startswith(self.base_url) else f"{self.base_url}/{request}"
+        if not self.token:
+            raise ValueError("Access token is not available. Please check your MS Graph API configuration.")
+        
+        url = request
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
@@ -86,24 +89,28 @@ class MSGraphAPI:
             raise ValueError(f"Error calling Microsoft Graph API: {str(e)}")
 
 def call_graph_api(api_url):
-    ms_graph_api = MSGraphAPI()
-    write_debug(f":satellite: Calling API: {api_url}")
     try:
+        ms_graph_api = MSGraphAPI()
+        if not ms_graph_api.token:
+            return "Error: Failed to initialize MS Graph API. Please check your configuration."
+        
+        write_debug(f":satellite: Calling API: {api_url}")
         api_response = ms_graph_api.call_api(api_url)
+        
+        # Check if there's more data available
+        next_link = api_response.get('@odata.nextLink')
+        
+        result = {
+            'data': api_response.get('value', []),
+            'next_link': next_link
+        }
+        
+        write_debug(f":white_check_mark: API call successful")
+        return json.dumps(result, indent=2)
     except Exception as e:
-        write_debug(f":warning: Error calling API: {str(e)}")
-        return f"Error calling API: {str(e)}"
-    
-    # Check if there's more data available
-    next_link = api_response.get('@odata.nextLink')
-    
-    result = {
-        'data': api_response.get('value', []),
-        'next_link': next_link
-    }
-    
-    write_debug(f":white_check_mark: API call successful")
-    return json.dumps(result, indent=2)
+        error_message = f"Error calling API: {str(e)}"
+        write_debug(f":warning: {error_message}")
+        return error_message
 
 def get_next_batch(next_link):
     ms_graph_api = MSGraphAPI()
@@ -124,32 +131,6 @@ def get_next_batch(next_link):
     except Exception as e:
         write_debug(f":warning: Error retrieving next batch: {str(e)}")
         return f"Error retrieving next batch: {str(e)}"
-
-def get_graph_api_url(client, query, system_prompt):
-    try:
-        messages = [
-            {"role": "developer", "content": system_prompt},
-            {"role": "user", "content": f"Generate a valid Microsoft Graph API URL for the following query: {query}"}
-        ]
-        
-        response = client.chat.completions.create(
-            model=st.session_state.LLM_MODEL,
-            messages=messages,
-            temperature=0.2,
-            reasoning_effort="low",
-            top_p=1.0,
-            frequency_penalty=0.0,
-            presence_penalty=0.0
-        )
-        
-        generated_url = response.choices[0].message.content.strip()
-        write_debug(f"Generated URL: {generated_url}")
-        
-        return {"url": generated_url, "json": parse_graph_api_url(generated_url)}
-    except Exception as e:
-        st.error(f"Error in get_graph_api_url: {str(e)}")
-        write_debug(f"Error in get_graph_api_url: {str(e)}")
-        return None
 
 def parse_graph_api_url(url):
     from urllib.parse import urlparse, parse_qs
@@ -199,3 +180,27 @@ def get_access_token():
     except Exception as e:
         st.error(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
         raise ValueError(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
+
+def test_graph_authentication():
+    try:
+        write_debug("Starting Graph API authentication test")
+        ms_graph_api = MSGraphAPI()
+        if not ms_graph_api.token:
+            write_debug("Failed to obtain access token")
+            return False, "Failed to obtain access token. Please check your MS Graph API configuration."
+        
+        # Test API call using the organization endpoint
+        test_url = "https://graph.microsoft.com/v1.0/organization?$select=displayName"
+        write_debug(f"Testing API call to: {test_url}")
+        response = ms_graph_api.call_api(test_url)
+        
+        if response and 'value' in response and len(response['value']) > 0:
+            write_debug("Successfully authenticated with MS Graph API")
+            org_name = response['value'][0].get('displayName', 'Not found')
+            return True, f"Successfully authenticated with MS Graph API. Organization Name: {org_name}"
+        else:
+            write_debug("Authentication successful, but failed to retrieve organization information")
+            return False, "Authentication successful, but failed to retrieve organization information."
+    except Exception as e:
+        write_debug(f"Error testing MS Graph API authentication: {str(e)}")
+        return False, f"Error testing MS Graph API authentication: {str(e)}"
