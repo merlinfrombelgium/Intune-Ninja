@@ -246,11 +246,11 @@ with col1:
     if query != st.session_state.get("query_input", ""):
         st.session_state.query_input = query
 
-    # Generate button
-    if st.button(':blue[Generate Graph API URL]', help=f"Prompt: {system_prompt['content']}"):
+    # Suggest Graph API URL button
+    if st.button(':blue[Suggest Graph API URL]', help=f"Prompt: {system_prompt['content']}"):
         current_query = st.session_state.query_input
         
-        with st.spinner("Generating Graph API URL..."):
+        with st.spinner("Suggesting Graph API URL..."):
             graph_api_url = get_graph_api_url(client, current_query, system_prompt)
             write_debug(f"Graph API URL: {graph_api_url['url']}")
             write_debug(f"Graph API JSON: {graph_api_url['json']}")
@@ -258,15 +258,8 @@ with col1:
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url["url"]
             st.session_state.graph_api_json = graph_api_url["json"]
-            
-            # Display the generated URL
-            st.write("Generated Graph API URL:")
-            st.code(st.session_state.graph_api_url, language="markdown")
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
-
-    # Display the current query for debugging
-    st.write("Current query:", st.session_state.query_input)
 
     # Add back the Graph API URL form
     def update_url():
