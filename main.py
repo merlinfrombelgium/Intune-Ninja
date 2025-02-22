@@ -50,6 +50,14 @@ def load_or_init_secrets():
         st.session_state.client_status = "unknown"
        # st.session_state.client_status_message = "Checking client status..."
 
+    # Add this after other session state initializations
+    if 'interpretation_prompt' not in st.session_state:
+        st.session_state.interpretation_prompt = """
+        Analyze the given Graph API response and provide a clear, concise interpretation. 
+        Explain what the data represents and any notable insights. 
+        If there are any errors or issues with the response, explain what they mean and suggest potential solutions.
+        """
+
 def clear_secrets_input():
     st.session_state.secrets_input = ""
     
@@ -203,46 +211,50 @@ with separator:
     st.markdown('<div class="vertical-separator"></div>', unsafe_allow_html=True)
 
 with col1:
-    # st.header("Get a well formed Graph API request URL")
-    # st.subheader("(Structured Output)")
-    
-    with st.form(key='query_form'):
-        user_input = st.text_input(
-            label="Query",
-            placeholder="Enter your query here...",
-            key="user_query"
-        )
-        examples = ["Show me users sorted by name", "List all Windows 11 devices", "Generate a report on recent blue screen events"]
-        selected_example = st.selectbox(label="Examples", options=[""] + examples)
-        
-        submit_button = st.form_submit_button(label=':blue[Generate Graph API URL]', help=f"Prompt: {system_prompt['content']}")
+    # Create the examples dropdown
+    examples = st.selectbox(
+        "Examples",
+        ["", "Show me users sorted by name", "List all Windows 11 devices", "Get all iOS devices"],
+        key="examples_dropdown"
+    )
 
-    # with st.popover("Prompt", use_container_width=True, help="This is the prompt for the AI to generate the Graph API URL"):
-    #     def update_system_prompt():
-    #         system_prompt["content"]=st.session_state.graph_api_prompt
-    #         print(system_prompt["content"])
-    #     st.text_area(label="Prompt", label_visibility="hidden", key="graph_api_prompt", value=f"{system_prompt['content']}", on_change=update_system_prompt, disabled=True)
-    
-    if selected_example:
-        #reset_state()
-        user_input = selected_example
-        # st.rerun()
-    
-    if submit_button or (user_input and user_input != st.session_state.get("last_query", "")):
-        #reset_state()
-        st.session_state.last_query = user_input
+    # Handle example selection
+    if examples and examples != st.session_state.get("last_example", ""):
+        st.session_state.last_example = examples
+        st.session_state.query_input = examples
+
+    # Create the query input
+    query = st.text_input(
+        "Query", 
+        key="query_input",
+        value=st.session_state.get("query_input", "")
+    )
+
+    # Update session state when query changes
+    if query != st.session_state.get("query_input", ""):
+        st.session_state.query_input = query
+
+    # Generate button
+    if st.button(':blue[Generate Graph API URL]', help=f"Prompt: {system_prompt['content']}"):
+        current_query = st.session_state.query_input
+        
         with st.spinner("Generating Graph API URL..."):
-            graph_api_url = get_graph_api_url(client, user_input, system_prompt)
+            graph_api_url = get_graph_api_url(client, current_query, system_prompt)
             write_debug(f"Graph API URL: {graph_api_url['url']}")
             write_debug(f"Graph API JSON: {graph_api_url['json']}")
         
         if graph_api_url:
             st.session_state.graph_api_url = graph_api_url["url"]
             st.session_state.graph_api_json = graph_api_url["json"]
+            
+            # Display the generated URL
+            st.write("Generated Graph API URL:")
+            st.code(st.session_state.graph_api_url, language="markdown")
         else:
             st.error("Failed to generate Graph API URL. Please try again.")
-    
-        # st.rerun()
+
+    # Display the current query for debugging
+    st.write("Current query:", st.session_state.query_input)
 
     # Add back the Graph API URL form
     def update_url():
@@ -402,7 +414,7 @@ with col2:
             with st.spinner(":ninja: Intune Ninja is interpreting the Graph API Response..."):
                 thread_id = get_or_create_thread_id()
                 ai_interpretation = chat_with_assistant(
-                    f"My query was: \"{user_input}\" and the response from the Graph API was: {dedent(st.session_state.graph_api_response)}", 
+                    f"My query was: \"{query}\" and the response from the Graph API was: {dedent(st.session_state.graph_api_response)}", 
                     st.session_state.interpretation_prompt, 
                     st.session_state.messages,
                     thread_id
@@ -464,3 +476,15 @@ st.markdown("""
 # At the end of the file, add this to ensure debug info is always displayed
 write_debug("")
 update_client_status()
+
+# Script to detect clicks on query input
+st.markdown("""
+<script>
+document.querySelector('input[aria-label="Query"]').addEventListener('click', function() {
+    window.parent.postMessage({
+        type: 'query_input_clicked',
+        value: true
+    }, '*');
+});
+</script>
+""", unsafe_allow_html=True)

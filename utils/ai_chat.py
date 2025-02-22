@@ -41,7 +41,7 @@ def chat_with_ai(message, history, system_prompt):
         {"role": "user", "content": message}
     ]
     
-    model = st.session_state.get('LLM_MODEL', 'gpt-4o-2024-08-06')
+    model = st.session_state.get('LLM_MODEL', 'o3-mini')
     print(f"Using model in chat_with_ai: {model}")  # Add this line
     
     try:
@@ -64,8 +64,8 @@ def chat_with_ai(message, history, system_prompt):
         st.error(f"Error in chat_with_ai: {str(e)}")
         return [(message, f"Error: {str(e)}")]
 
-def chat_with_assistant(prompt, instructions, history, thread_id=None):
-    # Add safety check for history and instructions
+def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new_thread=False):
+    # Added an optional force_new_thread parameter to allow creation of a new thread on demand
     if history is None:
         history = []
     
@@ -88,9 +88,12 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None):
     try:
         logger.info(f"Starting chat_with_assistant. Message: {prompt[:50]}...")
 
-        # Try to use the existing thread_id, create a new one if it doesn't exist
-        try:
-            if thread_id:
+        # If force_new_thread is enabled or no thread_id is provided, always create a new thread.
+        if force_new_thread or not thread_id:
+            thread_id = client.beta.threads.create().id
+            logger.info(f"Created new thread due to force_new_thread flag. ID: {thread_id}")
+        else:
+            try:
                 # Check if the thread exists
                 thread = client.beta.threads.retrieve(thread_id)
                 logger.info(f"Using existing thread. ID: {thread_id}")
@@ -103,14 +106,13 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None):
                         time.sleep(1)
                         runs.data[0] = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=runs.data[0].id)
                     logger.info(f"Active run completed. Status: {runs.data[0].status}")
-            else:
+            except Exception as e:
+                logger.warning(f"Error retrieving thread: {str(e)}. Creating a new one.")
                 thread_id = client.beta.threads.create().id
                 logger.info(f"Created new thread. ID: {thread_id}")
-        except Exception as e:
-            logger.warning(f"Error retrieving thread: {str(e)}. Creating a new one.")
-            thread_id = client.beta.threads.create().id
-            logger.info(f"Created new thread. ID: {thread_id}")
 
+        # For a new Graph API URL query, you might not need old history;
+        # if so, you could also choose to skip adding history messages.
         for msg in history:
             client.beta.threads.messages.create(
                 thread_id=thread_id,
@@ -133,7 +135,6 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None):
                 raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
             logger.info(f"Retrieved assistant. ID: {st.session_state.IntuneCopilotAssistant.id}")
 
-        # with st.spinner("Processing your request..."):
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=st.session_state.IntuneCopilotAssistant.id,
@@ -163,7 +164,6 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None):
 
         # Check if content is a list and has at least one item
         if isinstance(messages.data[0].content, list) and len(messages.data[0].content) > 0:
-            # Check if the first item has a 'text' attribute
             if hasattr(messages.data[0].content[0], 'text'):
                 return messages.data[0].content[0].text.value
             else:
