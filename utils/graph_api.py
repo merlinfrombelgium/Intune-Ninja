@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import json
 from requests.exceptions import HTTPError
-from utils.ai_chat import get_user_secret
+from utils.ai_chat import get_user_secret, update_client_status
 from utils.write_debug import write_debug
 
 global client
@@ -125,54 +125,77 @@ def get_next_batch(next_link):
         write_debug(f":warning: Error retrieving next batch: {str(e)}")
         return f"Error retrieving next batch: {str(e)}"
 
-def get_graph_api_url(client, message, system_prompt):
-    messages = [
-        {"role": "system", "content": system_prompt["content"]},
-        {"role": "user", "content": message}
-    ]
-
+def get_graph_api_url(client, query, system_prompt):
     try:
-        model = get_user_secret('LLM_MODEL')
-        # print(f"Using model in get_graph_api_url: {model}")  # Debug print
-
+        messages = [
+            {"role": "developer", "content": system_prompt},
+            {"role": "user", "content": f"Generate a valid Microsoft Graph API URL for the following query: {query}"}
+        ]
+        
         response = client.chat.completions.create(
-            model=model,
+            model=st.session_state.LLM_MODEL,
             messages=messages,
-            timeout=160,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "GraphAPIURL",
-                    "description": "A URL for the Microsoft Graph API.",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "base_url": {"type": "string", "enum": ["https://graph.microsoft.com/"]},
-                            "version": {"type": "string", "enum": ["v1.0", "beta"], "description": "The version of the Microsoft Graph API to use. Beta will have more recent features. Check the knowledge base for more info."},
-                            "endpoint": {"type": "string", "description": "The endpoint of the Microsoft Graph API to use. The choice of endpoint is crucial to get the correct response for the user's query. Note that some endpoints are only available in the beta version of the API. Check the knowledge base for more info. Do not include the base URL nor a leading '/' in the endpoint."},
-                            "parameters": {
-                                "type": ["array", "null"],
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["base_url", "version", "endpoint", "parameters"]
-                    }
-                }
-            }
+            temperature=0.2,
+            reasoning_effort="low",
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
         )
-
-        content = response.choices[0].message.content
-        content_json = json.loads(content)
-
-        if content_json['parameters']:
-            parameters = [param.lstrip('?') for param in content_json['parameters']]
-            url = f"{content_json['base_url']}{content_json['version']}/{content_json['endpoint'].strip('/')}?{'&'.join(parameters)}"
-        else:
-            url = f"{content_json['base_url']}{content_json['version']}/{content_json['endpoint'].strip('/')}"
-
-        write_debug(f"Generated URL: {url}")
-        write_debug(f"Generated URL in JSON: {content_json}")
-        return {"url": url, "json": content_json}
+        
+        generated_url = response.choices[0].message.content.strip()
+        write_debug(f"Generated URL: {generated_url}")
+        
+        return {"url": generated_url, "json": parse_graph_api_url(generated_url)}
     except Exception as e:
+        st.error(f"Error in get_graph_api_url: {str(e)}")
         write_debug(f"Error in get_graph_api_url: {str(e)}")
         return None
+
+def parse_graph_api_url(url):
+    from urllib.parse import urlparse, parse_qs
+    
+    parsed_url = urlparse(url)
+    query_params = parse_qs(parsed_url.query)
+    
+    json_representation = {
+        "base_url": f"{parsed_url.scheme}://{parsed_url.netloc}",
+        "version": parsed_url.path.split('/')[1],
+        "endpoint": '/'.join(parsed_url.path.split('/')[2:]),
+        "parameters": [f"{k}={v[0]}" for k, v in query_params.items()]
+    }
+    
+    return json_representation
+
+def get_access_token():
+    tenant_id = st.session_state.user_secrets['Graph proxy TENANT ID']
+    client_id = st.session_state.user_secrets['Graph proxy CLIENT ID']
+    client_secret = st.session_state.user_secrets['Graph proxy CLIENT SECRET']
+
+    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    body = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": "https://graph.microsoft.com/.default",
+        "grant_type": "client_credentials"
+    }
+    try:
+        write_debug(f":satellite: Sending request to {url}")
+        response = requests.post(url, headers=headers, data=body)
+        write_debug(f":satellite: Response status code: {response.status_code}")
+        response.raise_for_status()
+        token = response.json().get("access_token")
+        write_debug(":white_check_mark: Successfully obtained access token")
+        return token
+    except HTTPError as e:
+        st.error(f"HTTP Error: {e}")
+        if e.response.status_code == 400:
+            st.error("Error 400: Bad Request. Please check your Graph proxy TENANT ID and Graph proxy CLIENT ID in the user secrets.")
+        elif e.response.status_code == 401:
+            st.error("Error 401: Unauthorized. Please check your Graph proxy CLIENT SECRET in the user secrets.")
+        raise ValueError(f"HTTP Error: {e}")
+    except Exception as e:
+        st.error(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")
+        raise ValueError(f"Error initializing Microsoft Graph client: {str(e)}. Please check your Microsoft Graph credentials.")

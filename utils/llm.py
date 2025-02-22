@@ -13,7 +13,7 @@ client = OpenAI(api_key=st.secrets['LLM_API_KEY'])
 
 # Load the system prompt from the relative path
 history = [
-    {"role": "system", "content": open(os.path.join(prompts_dir, "system_prompt.md")).read().strip()},
+    {"role": "developer", "content": open(os.path.join(prompts_dir, "system_prompt.md")).read().strip()},
 ]
 
 def chat():
@@ -67,7 +67,7 @@ def assistant(instruction, system_prompt=None):
     response = client.chat.completions.create(
         model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
         messages=[
-            {"role": "system", "content": system_prompt_content},
+            {"role": "developer", "content": system_prompt_content},
             {"role": "user", "content": instruction}
         ],
         temperature=0.4,

@@ -5,6 +5,9 @@ from utils.oai_assistant import Assistant
 import logging
 from textwrap import dedent
 from utils.write_debug import write_debug
+import openai
+from urllib.parse import urlparse, parse_qs
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -24,25 +27,46 @@ def get_user_secret(key):
     return st.session_state.user_secrets.get(key)
 
 def initialize_client():
-    global client
-    client = OpenAI(api_key=st.session_state.user_secrets['LLM_API_KEY'])
-    if not client:
-        st.error("OpenAI client not initialized. Please refresh the page.")
-        st.stop()
-    else:
+    api_key = get_user_secret('OpenAI API key')
+    if not api_key:
+        write_debug("OpenAI API key is not set.")
+        return None
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        write_debug("OpenAI client initialized successfully.")
         return client
+    except Exception as e:
+        write_debug(f"Error initializing OpenAI client: {str(e)}")
+        return None
+
+def get_openai_client():
+    if 'openai_client' not in st.session_state:
+        st.session_state.openai_client = initialize_client()
+    return st.session_state.openai_client
 
 def chat_with_ai(message, history, system_prompt):
-    # if not client:
-    #     client = AI_client()
+    client = get_openai_client()
+    if not client:
+        st.error("OpenAI client is not initialized. Please check your configuration.")
+        return [(message, "Error: OpenAI client is not initialized")]
+    
+    # Ensure system_prompt is in the correct format
+    if isinstance(system_prompt, dict) and 'content' in system_prompt:
+        system_content = system_prompt['content']
+    elif isinstance(system_prompt, str):
+        system_content = system_prompt
+    else:
+        st.error("Invalid system_prompt format.")
+        return [(message, "Error: Invalid system_prompt format")]
     
     messages = [
-        {"role": "system", "content": system_prompt['content']},
+        {"role": "developer", "content": system_content},
         {"role": "user", "content": message}
     ]
     
     model = st.session_state.get('LLM_MODEL', 'o3-mini')
-    print(f"Using model in chat_with_ai: {model}")  # Add this line
+    print(f"Using model in chat_with_ai: {model}")
     
     try:
         response = client.chat.completions.create(
@@ -54,18 +78,30 @@ def chat_with_ai(message, history, system_prompt):
         )
 
         partial_response = ""
-        for stream_response in response:
-            if stream_response.choices[0].delta.content is not None:
-                partial_response += stream_response.choices[0].delta.content
+        for chunk in response:
+            if chunk.choices[0].delta.content is not None:
+                partial_response += chunk.choices[0].delta.content
                 yield [(message, partial_response)]
 
         return [(message, partial_response)]
+    except openai.APIError as e:
+        error_message = f"OpenAI API Error: {str(e)}"
+        st.error(error_message)
+        write_debug(error_message)
+        return [(message, f"Error: {str(e)}")]
     except Exception as e:
-        st.error(f"Error in chat_with_ai: {str(e)}")
+        error_message = f"Error in chat_with_ai: {str(e)}"
+        st.error(error_message)
+        write_debug(error_message)
         return [(message, f"Error: {str(e)}")]
 
 def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new_thread=False):
     # Added an optional force_new_thread parameter to allow creation of a new thread on demand
+    client = get_openai_client()
+    if not client:
+        st.error("OpenAI client is not initialized. Please check your configuration.")
+        return "Error: OpenAI client is not initialized"
+    
     if history is None:
         history = []
     
@@ -139,7 +175,8 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new
             thread_id=thread_id,
             assistant_id=st.session_state.IntuneCopilotAssistant.id,
             tools=[{"type": "file_search"}],
-            instructions=instructions  # Now this will always be a string
+            instructions=instructions,
+            reasoning_effort=st.session_state.get('REASONING_EFFORT', 'medium')  # Use the configured reasoning effort
         )
         logger.info(f"Created run. ID: {run.id}")
 
@@ -198,16 +235,80 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new
 #     }
 
 def check_client_status(client):
+    if not client:
+        return "not_configured"
     try:
-        # Attempt a simple API call to check if the client is working
-        client.models.list()
-        return "ready" #, "Client is ready and connected."
+        # Instead of listing all models, we'll just check if we can access the API
+        client.api_key
+        return "ready"
     except Exception as e:
         return "error", f"Error: {str(e)}"
 
-# Add this function to check and update client status
 def update_client_status():
+    client = get_openai_client()
     status = check_client_status(client)
     st.session_state.client_status = status
-    #st.session_state.client_status_message = message
+
+def get_graph_api_url(query, system_prompt):
+    client = get_openai_client()
+    if not client:
+        write_debug("OpenAI client is not initialized.")
+        return None
+
+    # Ensure system_prompt is a string
+    if not isinstance(system_prompt, str):
+        write_debug("Invalid system_prompt format. Expected a string.")
+        return None
+
+    messages = [
+        {"role": "developer", "content": system_prompt},
+        {"role": "user", "content": f"Generate a Microsoft Graph API URL for the following query: {query}"}
+    ]
+    
+    try:
+        write_debug(f"Model being used: {st.session_state.LLM_MODEL}")
+        write_debug(f"Messages being sent to API: {messages}")
+
+        # Common parameters for both o3 and 4o models
+        common_params = {
+            "model": st.session_state.LLM_MODEL,
+            "messages": messages,
+        }
+
+        # Add model-specific parameters
+        if st.session_state.LLM_MODEL.startswith("o3"):
+            common_params.update({
+                "reasoning_effort": st.session_state.get('REASONING_EFFORT', 'medium')
+            })
+        else:  # 4o models
+            common_params.update({
+                "temperature": 0.7,
+                "top_p": 1.0,
+                "frequency_penalty": 0.0,
+                "presence_penalty": 0.0
+            })
+
+        response = client.chat.completions.create(**common_params)
+        
+        write_debug(f"Raw API response: {response}")
+
+        # Extract the generated URL from the response
+        generated_url = response.choices[0].message.content.strip()
+        
+        # Parse the generated URL
+        parsed_url = urlparse(generated_url)
+        query_params = parse_qs(parsed_url.query)
+        
+        # Construct the JSON representation
+        json_representation = {
+            "base_url": f"{parsed_url.scheme}://{parsed_url.netloc}",
+            "version": parsed_url.path.split('/')[1],
+            "endpoint": '/'.join(parsed_url.path.split('/')[2:]),
+            "parameters": [f"{k}={v[0]}" for k, v in query_params.items()]
+        }
+        
+        return {"url": generated_url, "json": json_representation}
+    except Exception as e:
+        write_debug(f"Error in get_graph_api_url: {str(e)}")
+        return None
 

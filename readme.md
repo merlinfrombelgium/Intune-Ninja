@@ -72,6 +72,28 @@ Open your browser and navigate to `http://localhost:8501` to access the applicat
 
 </details>
 
+## Setup
+
+1. Clone the repository
+2. Install the required packages: `pip install -r requirements.txt`
+3. Set up your secrets:
+   - For local development:
+     - Create a file `.streamlit/secrets.toml` in your project root.
+     - Add your secrets to this file:
+       ```toml
+       OpenAI_API_key = "your_openai_api_key"
+       Graph_proxy_TENANT_ID = "your_tenant_id"
+       Graph_proxy_CLIENT_ID = "your_client_id"
+       Graph_proxy_CLIENT_SECRET = "your_client_secret"
+       LLM_MODEL = "o3-mini"  # or your preferred model
+       ```
+   - For deployment (e.g., Streamlit Cloud):
+     - Use the platform's secret management system to set these values.
+     - Do not include the `.streamlit/secrets.toml` file in your deployment.
+4. Run the Streamlit app: `streamlit run main.py`
+
+Note: The app uses `st.secrets` to access these values, which works seamlessly in both local and deployed environments.
+
 ## Contributing
 
 Feel free to submit issues or pull requests. Contributions are welcome!
