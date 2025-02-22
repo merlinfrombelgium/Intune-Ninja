@@ -16,10 +16,22 @@ def parse_secrets(secrets_text):
     return secrets
 
 def reset_state():
-    keys_to_keep = ['user_secrets', 'LLM_MODEL']
+    keys_to_keep = ['user_secrets', 'LLM_MODEL', 'client_status']
     for key in list(st.session_state.keys()):
         if key not in keys_to_keep:
             del st.session_state[key]
+    
+    # Reset specific form fields
+    st.session_state.query_input = ""
+    st.session_state.graph_api_url = ""
+    st.session_state.graph_api_json = {"version": "v1.0", "endpoint": "", "parameters": []}
+    st.session_state.graph_api_response = ""
+    st.session_state.graph_api_complete_url = ""
+    st.session_state.examples_dropdown = ""
+    st.session_state.messages = []
+    
+    # Clear debug messages
+    clear_debug_messages()
 
 # Streamlit UI setup
 st.set_page_config(page_title="Intune Ninja", layout="wide", page_icon=":ninja:") # This is how our app can be found through the Streamlit search engine
@@ -281,12 +293,6 @@ with col1:
 
     if "graph_api_url" in st.session_state:
         with st.form(key='graph_api_form'):
-            # st.text_input(
-            #     label="Base URL",
-            #     value=st.session_state.graph_api_json["base_url"],
-            #     key="graph_api_base_url",
-            #     disabled=True
-            # )
             st.text_input(
                 label="Complete URL",
                 value=st.session_state.graph_api_url,
@@ -297,28 +303,21 @@ with col1:
             with col_graph_left:
                 API_version = st.radio(
                     label="API version",
-                options=["v1.0", "beta"],
-                index=0 if st.session_state.graph_api_json["version"] == "v1.0" else 1,
-                horizontal=True,
-                key="graph_api_choice",
-                # on_change=update_url
-            )
-            # if API_version == "beta":
-            #     st.session_state.graph_api_version = "beta"
-            # else:
-            #     st.session_state.graph_api_version = "v1.0"
+                    options=["v1.0", "beta"],
+                    index=0 if isinstance(st.session_state.graph_api_json, dict) and st.session_state.graph_api_json.get("version") == "v1.0" else 1,
+                    horizontal=True,
+                    key="graph_api_choice",
+                )
             with col_graph_right:
                 st.text_input(
                     label="endpoint",
-                value=st.session_state.graph_api_json["endpoint"],
-                key="graph_api_endpoint",
-                # on_change=update_url
-            )
+                    value=st.session_state.graph_api_json.get("endpoint", "") if isinstance(st.session_state.graph_api_json, dict) else "",
+                    key="graph_api_endpoint",
+                )
             st.text_area(
                 label="parameters",
-                value="\n&".join(st.session_state.graph_api_json["parameters"]),
+                value="\n&".join(st.session_state.graph_api_json.get("parameters", [])) if isinstance(st.session_state.graph_api_json, dict) else "",
                 key="graph_api_parameters",
-                # on_change=update_url
             )
             col_graph_submit_left, col_graph_submit_right = st.columns(2)
             with col_graph_submit_left:
@@ -359,22 +358,9 @@ with col1:
             st.rerun()
 
 with col2:
-    # Add a Clear button
-    if st.button("Clear Everything"):
-        st.cache_resource.clear()
-        client.close()
-        st.session_state.thread_id = None
-        # st.session_state.messages = []
-        # st.session_state.thread_id = client.beta.threads.create().id  # Create a new thread
-        # clear_debug_messages()  # Clear debug messages
-        # st.session_state.graph_api_response = ""
-        # st.session_state.graph_api_url = ""
-        # st.session_state.graph_api_json = ""
-        # st.session_state.graph_api_base_url = ""
-        # st.session_state.graph_api_choice = ""
-        # st.session_state.graph_api_endpoint = ""
-        # st.session_state.graph_api_parameters = ""
-        st.session_state.graph_api_complete_url = ""
+    # Replace the Clear Everything button with Reset Forms
+    if st.button("Reset Forms"):
+        reset_state()
         st.rerun()
 
     with st.expander("Prompt", expanded=False):
