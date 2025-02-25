@@ -172,9 +172,13 @@ def chat_with_assistant(prompt, instructions, history, thread_id=None, force_new
         )
         logger.info("Added user message to thread")
 
+        # Initialize the assistant without showing info/debug messages in the UI
         if 'IntuneCopilotAssistant' not in st.session_state:
             with st.spinner("Preparing assistant..."):
-                st.session_state.IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
+                # Create a placeholder for potential UI messages
+                with st.empty():
+                    # Initialize the assistant
+                    st.session_state.IntuneCopilotAssistant = Assistant(client).retrieve_assistant()
             if st.session_state.IntuneCopilotAssistant is None:
                 raise ValueError("Failed to retrieve or create the Intune Copilot assistant")
             logger.info(f"Retrieved assistant. ID: {st.session_state.IntuneCopilotAssistant.id}")

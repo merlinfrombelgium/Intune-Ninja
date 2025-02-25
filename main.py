@@ -101,6 +101,11 @@ def load_or_init_secrets():
             'Graph proxy CLIENT ID': st.secrets.get("Graph_proxy_CLIENT_ID", ""),
             'Graph proxy CLIENT SECRET': st.secrets.get("Graph_proxy_CLIENT_SECRET", ""),
         }
+        
+        # If all secrets are already set from environment variables, mark secrets_saved as True
+        if all(st.session_state.user_secrets.values()):
+            st.session_state.secrets_saved = True
+            write_debug("All secrets are populated from environment - skipping secrets screen")
     else:
         # write_debug("user_secrets already in session state")
         pass
@@ -318,7 +323,8 @@ if not are_secrets_set():
                     else:
                         st.error(message)
 
-elif are_secrets_set():
+else:
+    # Main application interface when secrets are set
     st.title("🥷 Intune Ninja", help="*a ninja tool for crafting Graph API calls and interpreting the results with AI*")
 
     # Move configuration to sidebar
@@ -402,9 +408,10 @@ elif are_secrets_set():
             with st.spinner("Refreshing client status..."):
                 update_client_status()
 
-    # Main content area
+    # Create columns first before using them
     left_column, right_column = st.columns([1, 2])
 
+    # Then use the columns
     with left_column:
         st.subheader("Query Input")
         # Create the examples dropdown
@@ -422,8 +429,7 @@ elif are_secrets_set():
         # Create the query input
         query = st.text_input(
             "Open Query", 
-            key="query_input",
-            value=st.session_state.query_input
+            key="query_input"
         )
 
         # Suggest Graph API URL button
@@ -491,119 +497,190 @@ elif are_secrets_set():
                         st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
                         st.rerun()
 
-        # Display the Graph API response
-        if st.session_state.get("graph_api_response"):
-            st.subheader("Graph API Response")
-            st.text_area(
-                label="Graph API Response",
-                value=st.session_state.graph_api_response,
-                height=250,
-                key="graph_api_response_left_column"
-            )
-
-with right_column:
-    if 'show_interpretation' not in st.session_state or not st.session_state.show_interpretation:
-        st.subheader("Graph API Request")
-        if suggest_button:
-            if not st.session_state.secrets_saved:
-                st.warning("Please save your secrets in the configuration section before using this feature.")
-            else:
-                current_query = st.session_state.query_input
-                with st.spinner("Suggesting Graph API URL..."):
-                    graph_api_url = get_graph_api_url(current_query, st.session_state.system_prompt)
-                    if graph_api_url:
-                        st.session_state.graph_api_url = graph_api_url["url"]
-                        st.session_state.graph_api_json = graph_api_url["json"]
-                    else:
-                        st.error("Failed to generate Graph API URL. Please try again.")
-
-        # Add back the Graph API URL form
-        if "graph_api_url" in st.session_state:
-            with st.form(key='graph_api_form'):
-                original_values = {
-                    'url': st.session_state.graph_api_url,
-                    'version': st.session_state.graph_api_json.get("version", "beta"),
-                    'endpoint': st.session_state.graph_api_json.get("endpoint", ""),
-                    'parameters': "\n&".join(st.session_state.graph_api_json.get("parameters", []))
-                }
-
-                st.text_input(
-                    label="Complete URL",
-                    value=original_values['url'],
-                    key="graph_api_complete_url",
-                    disabled=False,
-                )
-                col_graph_left, col_graph_right = st.columns([0.2, 0.8])
-                with col_graph_left:
-                    API_version = st.radio(
-                        label="API version",
-                        options=["v1.0", "beta"],
-                        index=0 if original_values['version'] == "v1.0" else 1,
-                        horizontal=True,
-                        key="graph_api_choice",
-                    )
-                with col_graph_right:
-                    st.text_input(
-                        label="endpoint",
-                        value=original_values['endpoint'],
-                        key="graph_api_endpoint",
-                    )
+            # Only display the Graph API response in the left column when interpretation is shown
+            if st.session_state.get("graph_api_response") and st.session_state.get('show_interpretation'):
+                st.subheader("Graph API Response")
                 st.text_area(
-                    label="parameters",
-                    value=original_values['parameters'],
-                    key="graph_api_parameters",
-                )
-                
-                # Check if any values have changed
-                values_changed = (
-                    st.session_state.graph_api_complete_url != original_values['url'] or
-                    st.session_state.graph_api_choice != original_values['version'] or
-                    st.session_state.graph_api_endpoint != original_values['endpoint'] or
-                    st.session_state.graph_api_parameters != original_values['parameters']
+                    label="Graph API Response",
+                    value=st.session_state.graph_api_response,
+                    height=250,
+                    key="graph_api_response_left_column"
                 )
 
-                col_graph_submit_left, col_graph_submit_right = st.columns(2)
-                with col_graph_submit_left:
-                    submit_api_call = st.form_submit_button(label="🤞 :green[Try Graph API request]")
-                with col_graph_submit_right:
-                    update_url_button = st.form_submit_button(label="♻️ Update Graph API URL", disabled=not values_changed)
+    with right_column:
+        if 'show_interpretation' not in st.session_state or not st.session_state.show_interpretation:
+            st.subheader("Graph API Request")
+            if suggest_button:
+                if not st.session_state.secrets_saved:
+                    st.warning("Please save your secrets in the configuration section before using this feature.")
+                else:
+                    current_query = st.session_state.query_input
+                    with st.spinner("Suggesting Graph API URL..."):
+                        graph_api_url = get_graph_api_url(current_query, st.session_state.system_prompt)
+                        if graph_api_url:
+                            st.session_state.graph_api_url = graph_api_url["url"]
+                            st.session_state.graph_api_json = graph_api_url["json"]
+                        else:
+                            st.error("Failed to generate Graph API URL. Please try again.")
 
-            if update_url_button:
-                update_url()
-                st.rerun()
+            # Add back the Graph API URL form
+            if "graph_api_url" in st.session_state:
+                with st.form(key='graph_api_form'):
+                    original_values = {
+                        'url': st.session_state.graph_api_url,
+                        'version': st.session_state.graph_api_json.get("version", "beta"),
+                        'endpoint': st.session_state.graph_api_json.get("endpoint", ""),
+                        'parameters': "\n&".join(st.session_state.graph_api_json.get("parameters", []))
+                    }
 
-            if submit_api_call:
-                with st.spinner("Calling Graph API..."):
-                    st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
+                    st.text_input(
+                        label="Complete URL",
+                        value=original_values['url'],
+                        key="graph_api_complete_url",
+                        disabled=False,
+                    )
+                    col_graph_left, col_graph_right = st.columns([0.2, 0.8])
+                    with col_graph_left:
+                        API_version = st.radio(
+                            label="API version",
+                            options=["v1.0", "beta"],
+                            index=0 if original_values['version'] == "v1.0" else 1,
+                            horizontal=True,
+                            key="graph_api_choice",
+                        )
+                    with col_graph_right:
+                        st.text_input(
+                            label="endpoint",
+                            value=original_values['endpoint'],
+                            key="graph_api_endpoint",
+                        )
+                    st.text_area(
+                        label="parameters",
+                        value=original_values['parameters'],
+                        key="graph_api_parameters",
+                    )
+                    
+                    # Check if any values have changed
+                    values_changed = (
+                        st.session_state.graph_api_complete_url != original_values['url'] or
+                        st.session_state.graph_api_choice != original_values['version'] or
+                        st.session_state.graph_api_endpoint != original_values['endpoint'] or
+                        st.session_state.graph_api_parameters != original_values['parameters']
+                    )
+
+                    col_graph_submit_left, col_graph_submit_right = st.columns(2)
+                    with col_graph_submit_left:
+                        submit_api_call = st.form_submit_button(label="🤞 :green[Try Graph API request]")
+                    with col_graph_submit_right:
+                        update_url_button = st.form_submit_button(label="♻️ Update Graph API URL", disabled=not values_changed)
+
+                if update_url_button:
+                    update_url()
                     st.rerun()
 
-        # Display the Graph API response
-        if st.session_state.get("graph_api_response"):
-            st.subheader("Graph API Response")
-            with st.form(key='graph_api_response_form'):
-                interpret_button = st.form_submit_button(
-                    label="❔Interpret Response" if not st.session_state.get('bad_request', False) else "🪄 Fix it!"
-                )
+                if submit_api_call:
+                    with st.spinner("Calling Graph API..."):
+                        st.session_state.graph_api_response = invoke_graph_api(st.session_state.graph_api_url)
+                        st.rerun()
+
+            # Only display the Graph API response in the right column when interpretation is not shown
+            if st.session_state.get("graph_api_response") and not st.session_state.get('show_interpretation'):
+                st.subheader("Graph API Response")
                 st.text_area(
                     label="Graph API Response",
                     value=st.session_state.graph_api_response,
                     height=250,
                     key="graph_api_response_right_column"
                 )
-            
-            if interpret_button:
-                st.session_state.show_interpretation = True
-                st.rerun()
+                
+                # Move the interpret button below the response window
+                interpret_button = st.button(
+                    "❔Interpret Response" if not st.session_state.get('bad_request', False) else "🪄 Fix it!"
+                )
+                
+                if interpret_button:
+                    st.session_state.show_interpretation = True
+                    st.rerun()
 
-    if 'show_interpretation' in st.session_state and st.session_state.show_interpretation:
-        st.subheader("Interpretation")
-        with st.spinner("Interpreting response..."):
-            interpretation = chat_with_assistant(
-                f"Interpret this Graph API response: {st.session_state.graph_api_response}",
-                st.session_state.interpretation_prompt,
-                st.session_state.messages
-            )
-            st.write(interpretation)
+        if 'show_interpretation' in st.session_state and st.session_state.show_interpretation:
+            st.subheader("Interpretation")
+            
+            # Initialize messages list if not present
+            if 'conversation_messages' not in st.session_state:
+                st.session_state.conversation_messages = []
+            
+            # Display the initial interpretation if we don't have any messages yet
+            if not st.session_state.conversation_messages:
+                with st.spinner("Interpreting response..."):
+                    interpretation = chat_with_assistant(
+                        f"Interpret this Graph API response: {st.session_state.graph_api_response}",
+                        st.session_state.interpretation_prompt,
+                        st.session_state.messages
+                    )
+                    # Add the initial interpretation to conversation history
+                    st.session_state.conversation_messages.append({"role": "assistant", "content": interpretation})
+            
+            # Create a container with fixed height for scrollable conversation
+            chat_container = st.container(height=400, border=False)
+            
+            # Display conversation history in the scrollable container
+            with chat_container:
+                for message in st.session_state.conversation_messages:
+                    if message["role"] == "user":
+                        st.chat_message("user").write(message["content"])
+                    else:
+                        st.chat_message("assistant").write(message["content"])
+                
+                # Add an empty space at the bottom for auto-scrolling
+                scroll_to_bottom = st.empty()
+            
+            # Add JavaScript to scroll to the bottom of the conversation
+            if st.session_state.conversation_messages:
+                js_code = """
+                <script>
+                    function scroll_to_bottom() {
+                        var chatContainer = document.querySelector('[data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"]');
+                        if (chatContainer) {
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    }
+                    setTimeout(scroll_to_bottom, 500);
+                </script>
+                """
+                st.components.v1.html(js_code, height=0)
+            
+            # Add text input for follow-up questions
+            user_input = st.text_input("Enter a follow-up question about the interpretation", key="conversation_input")
+            
+            # Add submit button
+            if st.button("Ask Follow-up Question"):
+                if user_input:
+                    # Add user message to conversation
+                    st.session_state.conversation_messages.append({"role": "user", "content": user_input})
+                    
+                    # Get assistant response
+                    with st.spinner("Getting response..."):
+                        follow_up_response = chat_with_assistant(
+                            user_input,
+                            st.session_state.interpretation_prompt,
+                            st.session_state.conversation_messages
+                        )
+                        
+                        # Add assistant response to conversation
+                        st.session_state.conversation_messages.append({"role": "assistant", "content": follow_up_response})
+                    
+                    # Instead of directly modifying the session state here,
+                    # we'll set a flag in session state to clear the input on next rerun
+                    if 'clear_conversation_input' not in st.session_state:
+                        st.session_state.clear_conversation_input = True
+                    
+                    # Rerun to update the conversation display
+                    st.rerun()
+                    
+            # Clear the input field at the beginning of the next run if flag is set
+            if st.session_state.get('clear_conversation_input', False):
+                st.session_state.conversation_input = ""
+                st.session_state.clear_conversation_input = False
 
 # At the end of the file, add this to ensure debug info is always displayed
 # write_debug("")
